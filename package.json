@@ -1,0 +1,17 @@
+{
+  "name": "mana-market",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @mana/web",
+    "build": "npm run build -w @mana/web",
+    "test": "npm test -w @mana/engine && npm test -w @mana/web && npm test -w @mana/server",
+    "server": "npm run dev -w @mana/server",
+    "sim": "npm run sim -w @mana/engine --",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "e2e": "npm run e2e -w @mana/web"
+  }
+}

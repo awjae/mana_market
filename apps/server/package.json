@@ -1,0 +1,12 @@
+{
+  "name": "@mana/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "@mana/engine": "*" },
+  "devDependencies": { "@types/node": "^26.6.6", "tsx": "^4.23.15", "typescript": "^7.0.2", "vitest": "^5.1.1" }
+}

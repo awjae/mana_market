@@ -1,0 +1,11 @@
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+*.log
+coverage
+# 개발용 서버 데이터(계정·토큰 해시)와 백업은 올리지 않는다
+apps/server/data.json
+apps/server/data.json.*
+apps/server/*.bak
+.claude/settings.local.json
