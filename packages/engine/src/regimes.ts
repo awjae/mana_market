@@ -9,7 +9,7 @@ export interface Block { kind: RegimeKind; start: number; len: number; /** 평�
 export interface Regime { kind: RegimeKind; /** 구간 안에서의 진행(0~1) */ t: number; drift: number; vol: number; block: Block }
 
 /** 국면 길이(일). 한국 플레이어는 며칠 안에 변화를 기대해서 몇 달짜리 국면은 너무 길다 → 열흘~보름 단위 */
-const LEN: Record<RegimeKind, [number, number]> = { calm: [8, 16], boom: [8, 16], bubble: [8, 14], crash: [5, 10] };
+const LEN: Record<RegimeKind, [number, number]> = { calm: [4, 8], boom: [4, 8], bubble: [4, 7], crash: [3, 5] };
 /** 새 세계의 첫 평온 구간(신규를 위한 보호). 며칠이면 충분하다 */
 export const FIRST_CALM = 7;
 const cache = new Map<number, Block[]>();
@@ -38,9 +38,9 @@ export function regimeAt(seed: number, day: number): Regime {
   const block = bl.find((b) => day >= b.start && day < b.start + b.len)!;
   const t = (day - block.start) / block.len;
   switch (block.kind) {
-    case 'boom': return { kind: 'boom', t, drift: 0.004, vol: 1.1, block };
-    case 'bubble': return { kind: 'bubble', t, drift: 0.003 + 0.014 * t, vol: 1 + 0.5 * t, block };
-    case 'crash': return { kind: 'crash', t, drift: -0.036 + 0.021 * t, vol: 1.9 - 0.7 * t, block };
+    case 'boom': return { kind: 'boom', t, drift: 0.0072, vol: 1.1, block };
+    case 'bubble': return { kind: 'bubble', t, drift: 0.0054 + 0.025 * t, vol: 1 + 0.5 * t, block };
+    case 'crash': return { kind: 'crash', t, drift: -0.055 + 0.032 * t, vol: 1.9 - 0.7 * t, block };
     default: return { kind: 'calm', t, drift: 0, vol: 1.25, block };
   }
 }

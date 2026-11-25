@@ -1,5 +1,6 @@
 import { fantasyDate, type Season } from '@mana/engine';
 import { weatherKind } from './calendar';
+import { specialOf } from './special';
 import { hash } from './scene/hash';
 import { FACILITIES } from './scene/townFx';
 import { N, PLAZA, terrain, tileFree, type Ent } from './scene/map';
@@ -42,7 +43,7 @@ export const yieldOf = (kind: MatKind, day: number) => {
 /** 드물게 함께 찾는 귀한 것(날짜·채집점·그날의 줍기 횟수로 정해지는 결정적 값, 4번에 1번꼴). 마나 값어치 없이 소품 재료로만 쓴다 */
 export const RARE: Record<MatKind, { id: string; name: string }> = { plant: { id: 'herb', name: '달빛 약초' }, fruit: { id: 'goldfruit', name: '황금 열매' }, stone: { id: 'crystal', name: '수정 조각' } };
 export const RARE_RATE = 0.25;
-export const rareFind = (day: number, spot: number, n: number): boolean => hash(day, spot * 31 + n, 90) < RARE_RATE;
+export const rareFind = (day: number, spot: number, n: number): boolean => hash(day, spot * 31 + n, 90) < (specialOf(day).id === 'harvest' ? RARE_RATE * 2 : RARE_RATE); // 풍년의 날엔 두 배
 
 /** 수공품 소품(소품 번호 → 재료). 마나로는 살 수 없다 */
 export const CRAFT: Record<number, Record<string, number>> = {
@@ -75,4 +76,18 @@ const diveTile = (): [number, number] => {
 };
 const DT = diveTile();
 export const DIVE_SPOT = { id: 4, label: '동굴 입구', tile: DT, ent: { kind: 'cave', x: DT[0], y: DT[1] } as Ent };
-export const ALL_SPOTS_WITH_DIVE = [...ALL_SPOTS, DIVE_SPOT];
+/** 성당: 광장에서 가까운 풀밭. 직업을 받고 바꾸는 곳 */
+const templeTile = (): [number, number] => {
+  const used = new Set([...ALL_SPOTS.map((x) => x.tile.join(',')), DT.join(','), ...FACILITIES.flatMap((f) => f.items.flat()).map((e) => `${e.x},${e.y}`)]);
+  const c: [number, number][] = [];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const d = Math.max(Math.abs(x - PLAZA[0]), Math.abs(y - PLAZA[1]));
+    const near = [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [0, 2], [-2, 0], [0, -2]].some(([dx, dy]) => used.has(`${x + dx},${y + dy}`));
+    if (d >= 4 && d <= 6 && terrain(x, y) === 'g' && tileFree(x, y) && !used.has(`${x},${y}`) && !near) c.push([x, y]);
+  }
+  c.sort((a, b) => hash(a[0], a[1], 411) - hash(b[0], b[1], 411));
+  return c[0] ?? [PLAZA[0] + 5, PLAZA[1]];
+};
+const TT = templeTile();
+export const TEMPLE_SPOT = { id: 5, label: '성당', tile: TT, ent: { kind: 'temple', x: TT[0], y: TT[1] } as Ent };
+export const ALL_SPOTS_WITH_DIVE = [...ALL_SPOTS, DIVE_SPOT, TEMPLE_SPOT];

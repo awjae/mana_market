@@ -3,7 +3,7 @@ import { sx, sy } from './iso';
 import { guildSprite } from './pixelGuilds';
 import { FOREST_RING, N, entsAt, isPaved, terrain, type Ent, type Terrain } from './map';
 import { PS, type Sprite } from './pix';
-import { banner, barrels, boat, bush, cave, castleSpriteLazy, cart, cow, dummy, fence, flowers, fountain, ground, hay, house, lamp, lantern, mushroom, rock, scarecrow, stall, tree, well, type GroundKind, type HouseKind } from './pixelWorld';
+import { banner, barrels, boat, bush, cave, temple, castleSpriteLazy, cart, cow, dummy, fence, flowers, fountain, ground, hay, house, lamp, lantern, mushroom, rock, scarecrow, stall, tree, well, type GroundKind, type HouseKind } from './pixelWorld';
 
 export { hash };
 
@@ -67,6 +67,7 @@ function entSprite(e: Ent, festival: boolean): { sp: Sprite; sum: number } {
     case 'banner': return one(banner(v));
     case 'lantern': return one(lantern());
     case 'cave': return one(cave());
+    case 'temple': return one(temple());
     case 'lamp': return one(lamp(festival));
   }
 }

@@ -10,6 +10,7 @@ import { prosperity } from '../scene/townFx';
 import { MOUNT_NAMES } from '../scene/pixelMounts';
 import { useGame } from '../store';
 import { dailyGoals, nextDailyTitle } from '../daily';
+import { specialOf } from '../special';
 import { EVENT_TASKS, eventOf, eventTitle } from '../events';
 import { freshWeek, nextWeeklyTitle, weekOf, weeklyGoals } from '../weekly';
 import { STARTER, STARTER_TITLE, STARTER_TOTAL } from '../starter';
@@ -66,6 +67,8 @@ export function LifePanel() {
           <p className="m-0 text-[12px] font-bold text-ink2">{t.hint}</p>
           <div className="flex gap-2">{pl && <button onClick={() => gotoTile(pl.tile)} className="panel-flat h-9 flex-1 bg-white text-[12.5px] font-black">걸어가기</button>}<p className="m-0 flex-1 self-center text-right text-[11px] font-bold text-ink2">모두 마치면 "{STARTER_TITLE}" 칭호와 합쳐 {STARTER_TOTAL.toLocaleString('ko-KR')} 마나(한 번만)</p></div>
         </div>); })() : null}
+      {(() => { const sp = specialOf(day); return (
+        <div className={`panel-flat flex items-center justify-between gap-2 px-3 py-2 ${sp.id === 'plain' ? 'bg-white' : 'bg-[#eaffe9]'}`}><span className="min-w-0"><b className="font-display text-[15px]">오늘은 {sp.name}</b><span className="block text-[11.5px] font-bold text-ink2">{sp.desc}</span></span></div>); })()}
       {ev && (
         <div className="panel-flat space-y-1.5 bg-[#fff0f6] p-3">
           <div className="flex items-center justify-between"><b className="font-display text-[15px]">오늘은 {ev.name}</b><span className="text-[11.5px] font-bold text-ink2">{evDone ? '칭호를 받았어요' : '이벤트 과제'}</span></div>

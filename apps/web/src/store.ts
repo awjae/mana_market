@@ -4,6 +4,8 @@ import { call, type ServerConn, type ServerMe } from './serverClient';
 import { josa } from './josa';
 import { DAILY_TITLES, allDailyDone } from './daily';
 import { STARTER, STARTER_TITLE } from './starter';
+import { CLS_LIST, MAX_RANK, SKILL_BY_ID, SUB_NEED, grantChoices, grantReady, defaultSlots, freePoints, levelOf, rankOf as skillRank, validSlots, SLOT_COUNT, type Cls } from './skills';
+import { specialOf } from './special';
 import { EVENT_TASKS, eventOf, eventTitle } from './events';
 import { WEEKLY_TITLES, freshWeek, weekOf, weeklyGoals, type WeekStat } from './weekly';
 import { MAX_MOUNT, MOUNT_PRICE } from './mount';
@@ -38,6 +40,11 @@ export const todayIdx = () => dayIndexAt(Date.now());
 export type { Holding, Trade, Order, Fired } from '@mana/engine';
 export { ORDER_DAYS, MAX_ORDERS } from '@mana/engine';
 
+const newSeed = () => Math.floor(Math.random() * 1_000_000_000) + 1;
+/** 저장에서 받은 직업을 읽는다(옛 저장은 지금 직업 하나를 이미 받은 것으로 친다) */
+const ownedOf = (d: { cls?: unknown; owned?: unknown }): Cls[] => [...new Set([...(Array.isArray(d.owned) ? d.owned : []), d.cls].filter((c): c is Cls => CLS_LIST.includes(c as Cls)))];
+/** 부 직업은 받은 직업이고 주 직업과 달라야 한다 */
+const subOf = (d: { cls?: unknown; sub?: unknown; owned?: unknown }): Cls | null => { const o = ownedOf(d); return CLS_LIST.includes(d.sub as Cls) && o.includes(d.sub as Cls) && d.sub !== d.cls ? (d.sub as Cls) : null; };
 const withFired = <T extends { fired: Fired[] }>(old: Fired[], r: T) => ({ ...r, fired: [...old, ...r.fired].slice(-20) });
 
 /** 업적: 샌드박스에서 해 볼 만한 목표. 조건은 저장된 상태만으로 판단한다 */
@@ -59,7 +66,7 @@ const LIFE_ACHIEVEMENTS: Achievement[] = [
   { id: 'dex-half', name: '몬스터 도감의 절반', desc: '던전의 몬스터 여섯 종류를 쓰러뜨려 보세요.', test: (g) => seenMon(g).length >= 6 },
   { id: 'boss-king', name: '동굴의 왕', desc: '5층의 보스 동굴의 왕을 쓰러뜨려 보세요.', test: (g) => seenMon(g).includes(10) },
   { id: 'boss-abyss', name: '심연을 건너다', desc: '10층의 보스 심연의 군주를 쓰러뜨려 보세요.', test: (g) => seenMon(g).includes(11) },
-  { id: 'gear-max', name: '완전 무장', desc: '던전 장비를 6단계까지 올려 보세요.', test: (g) => (g.gear ?? 1) >= MAX_GEAR },
+  { id: 'gear-max', name: '완전 무장', desc: '던전 장비를 4단계까지 올려 보세요.', test: (g) => (g.gear ?? 1) >= MAX_GEAR },
   { id: 'boss-frost', name: '얼어붙은 왕좌', desc: '15층의 보스 서리 거인을 쓰러뜨려 보세요.', test: (g) => seenMon(g).includes(13) },
   { id: 'boss-dragon', name: '종말을 넘어', desc: '20층의 보스 종말의 용을 쓰러뜨려 보세요.', test: (g) => seenMon(g).includes(14) },
   { id: 'event-1', name: '축제의 손님', desc: '축제나 기념일의 이벤트 과제를 마쳐 보세요.', test: (g) => (g.events ?? []).length >= 1 },
@@ -195,6 +202,16 @@ interface Game {
   /** 오늘의 모험 목표를 모두 채운 날 수(마지막으로 채운 날과 누적) */
   daily: { last: number; n: number };
   checkDaily: () => boolean;
+  /** 던전 RPG: 경험치·클래스(없으면 처음 고른다)·스킬 랭크·장착 스킬·마지막으로 클래스를 바꾼 날 */
+  dun: { xp: number; cls: Cls | null; ranks: Record<string, number>; slots: string[]; swapDay: number; /** 성당에서 받은 직업 */ owned: Cls[]; /** 직업 후보를 정하는 저장 시드 */ seed: number; /** 성당에서 켜 둔 부 직업(없으면 null). 주 직업 하나 + 부 직업 하나까지 동시에 쓴다 */ sub: Cls | null };
+  chooseCls: (c: Cls) => string | null;
+  /** 성당: 문턱에 닿았을 때 후보 3개 중 하나를 받는다 */
+  grantCls: (c: Cls) => string | null;
+  /** 성당: 부 직업을 켜거나(다른 받은 직업) 끈다(null) */
+  setSub: (c: Cls | null) => string | null;
+  learnSkill: (id: string) => string | null;
+  toggleSlot: (id: string) => void;
+  addXp: (n: number) => void;
   /** 주간 도전: 이번 주 기록과 마친 주 수 */
   weekly: { stat: WeekStat; n: number; last: number };
   checkWeekly: () => boolean;
@@ -308,7 +325,7 @@ export const useGame = create<Game>()(
       dungeonCollect: ({ kind, mats = {}, potion = 0 }) => {
         const g = get(), dl = g.dlog, m = { ...dl.mats };
         for (const [k, n] of Object.entries(mats)) m[k] = (m[k] ?? 0) + n;
-        if (kind !== undefined) m[lootOf(kind)] = (m[lootOf(kind)] ?? 0) + 1;
+        if (kind !== undefined) m[lootOf(kind)] = (m[lootOf(kind)] ?? 0) + (specialOf(g.market.day).id === 'migration' ? 2 : 1); // 몬스터 대이동의 날엔 두 개씩
         set({ dlog: { seen: kind !== undefined && !dl.seen.includes(kind) ? [...dl.seen, kind] : dl.seen, mats: m, items: { ...dl.items, potion: Math.min(ITEM_LIMIT, dl.items.potion + potion) } } });
       },
       craftItem: (id) => {
@@ -525,6 +542,50 @@ export const useGame = create<Game>()(
       goalDone: [],
       titles: [],
       activeTitle: null,
+      dun: { xp: 0, cls: null, ranks: {}, slots: [], swapDay: -1, owned: [], seed: newSeed(), sub: null },
+      chooseCls: (c) => {
+        const g = get(), d = g.dun;
+        if (g.server) return '서버 모드에서는 쓸 수 없어요';
+        if (d.cls === c) return null;
+        if (!d.owned.includes(c)) return '성당에서 받은 직업만 고를 수 있어요';
+        const sub = d.sub === c ? null : d.sub;
+        set({ dun: { ...d, cls: c, sub, slots: validSlots(c, d.ranks, [...defaultSlots(c), ...d.slots.filter((id) => !defaultSlots(c).includes(id))], sub), swapDay: d.swapDay } });
+        return null;
+      },
+      grantCls: (c) => {
+        const g = get(), d = g.dun;
+        if (g.server) return '서버 모드에서는 쓸 수 없어요';
+        if (!grantReady(g.spent, d.owned)) return '아직 직업을 받을 수 없어요';
+        if (!grantChoices(d.seed, d.owned).includes(c)) return '후보에 없는 직업이에요';
+        set({ dun: { ...d, owned: [...d.owned, c], cls: d.cls ?? c, slots: d.cls ? d.slots : validSlots(c, d.ranks, defaultSlots(c), null) } });
+        return null;
+      },
+      setSub: (c) => {
+        const g = get(), d = g.dun;
+        if (g.server) return '서버 모드에서는 쓸 수 없어요';
+        if (c !== null && g.spent < SUB_NEED) return `마나를 ${SUB_NEED.toLocaleString()} 이상 쓰면 부 직업을 켤 수 있어요`;
+        if (c !== null && (!d.owned.includes(c) || c === d.cls)) return '부 직업으로 켤 수 없는 직업이에요';
+        set({ dun: { ...d, sub: c, slots: d.cls ? validSlots(d.cls, d.ranks, d.slots, c) : d.slots } });
+        return null;
+      },
+      learnSkill: (id) => {
+        const g = get(), d = g.dun, sk = SKILL_BY_ID[id];
+        if (!sk || !d.cls) return '배울 수 없는 스킬이에요';
+        if (!d.owned.includes(sk.cls)) return '받지 못한 직업의 스킬이에요';
+        if (sk.cls !== d.cls && sk.cls !== d.sub) return '성당에서 켜 둔 직업의 스킬만 배울 수 있어요';
+        const r = skillRank(d.ranks, id);
+        if (r >= MAX_RANK) return '이미 가장 높은 랭크예요';
+        if (freePoints(levelOf(d.xp).lvl, d.ranks) <= 0) return '스킬 포인트가 없어요(레벨이 오르면 생겨요)';
+        const ranks = { ...d.ranks, [id]: r + 1 };
+        set({ dun: { ...d, ranks, slots: validSlots(d.cls, ranks, d.slots.includes(id) ? d.slots : [...d.slots, id], d.sub) } });
+        return null;
+      },
+      toggleSlot: (id) => {
+        const d = get().dun; if (!d.cls || !SKILL_BY_ID[id] || skillRank(d.ranks, id) < 1 || (SKILL_BY_ID[id].cls !== d.cls && SKILL_BY_ID[id].cls !== d.sub && !d.slots.includes(id))) return;
+        const slots = d.slots.includes(id) ? d.slots.filter((x) => x !== id) : validSlots(d.cls, d.ranks, [...d.slots, id], d.sub);
+        set({ dun: { ...d, slots } });
+      },
+      addXp: (n) => set((g) => ({ dun: { ...g.dun, xp: g.dun.xp + Math.max(0, Math.floor(n)) } })),
       weekly: { stat: freshWeek(-1, 0), n: 0, last: -1 },
       checkWeekly: () => {
         const g = get(); if (!g.granted || g.server) return false;
@@ -739,20 +800,20 @@ export const useGame = create<Game>()(
       setLastSeen: (day) => set({ lastSeenDay: day }),
       grantCapital: () => set((g) => (g.granted ? g : { granted: true, cash: round2(g.cash + START_CASH), lastSeenDay: g.market.day })),
       setTutStep: (step, baseDay) => set((g) => ({ tutStep: step, tutBaseDay: baseDay ?? g.tutBaseDay })),
-      reset: () => set({ market: view(marketAtDay(todayIdx())), cash: 0, holdings: {}, granted: false, looked: false, spent: 0, ownedLooks: [], ownedProps: [], gather: { day: -1, done: [] }, mats: {}, loan: null, shop: null, love: null, mounts: [], mount: 0, daily: { last: -1, n: 0 }, starter: 0, weekly: { stat: freshWeek(-1, 0), n: 0, last: -1 }, events: [], dlog: { seen: [], mats: {}, items: { potion: 0, charm: 0 } }, act: { day: -1, sold: 0, fished: 0, casts: 0, dove: 0, tries: 0 }, fishLog: {}, rod: 1, gear: 1, earned: 0, lastRelief: -9999, town: {}, qtalk: { key: -1, n: 0 }, goalDone: [], titles: [], activeTitle: null, streak: { last: -1, n: 0 }, worthLog: {}, quest: { day: -1, ans: {} }, questCorrect: 0, server: null, localBackup: null, orders: [], fired: [], bond: {}, achv: {}, trades: [], paidDay: todayIdx(), tutStep: 0, tutBaseDay: 0, skipDays: 0, lastSeenDay: todayIdx() }),
+      reset: () => set({ market: view(marketAtDay(todayIdx())), cash: 0, holdings: {}, granted: false, looked: false, spent: 0, ownedLooks: [], ownedProps: [], gather: { day: -1, done: [] }, mats: {}, loan: null, shop: null, love: null, mounts: [], mount: 0, daily: { last: -1, n: 0 }, starter: 0, weekly: { stat: freshWeek(-1, 0), n: 0, last: -1 }, events: [], dun: { xp: 0, cls: null, ranks: {}, slots: [], swapDay: -1, owned: [], seed: newSeed(), sub: null }, dlog: { seen: [], mats: {}, items: { potion: 0, charm: 0 } }, act: { day: -1, sold: 0, fished: 0, casts: 0, dove: 0, tries: 0 }, fishLog: {}, rod: 1, gear: 1, earned: 0, lastRelief: -9999, town: {}, qtalk: { key: -1, n: 0 }, goalDone: [], titles: [], activeTitle: null, streak: { last: -1, n: 0 }, worthLog: {}, quest: { day: -1, ans: {} }, questCorrect: 0, server: null, localBackup: null, orders: [], fired: [], bond: {}, achv: {}, trades: [], paidDay: todayIdx(), tutStep: 0, tutBaseDay: 0, skipDays: 0, lastSeenDay: todayIdx() }),
     }),
     {
       name: 'mana-market-v1',
-      version: 24, // 24: weekly·events(주간 도전·이벤트) / 23: 23: starter(입문 과제) / 22: 22: 튜토리얼 8단계(생활 탭) / 21: 21: daily(오늘의 모험 목표 달성 일수) / 20: mounts·mount(탈것) / 19: love(히로인 인연) / 18: shop(내 상점) / 17: dlog(던전 재료·소모품·도감) / 16: act.tries(던전 하루 2회) / 15: act·fishLog·rod·earned(납품·낚시) / 14: loan(마나 은행) / 13: gather·mats(마을 일과) / 12: ownedLooks(눈·머리·옷 한정 모양) / 11: spent(영구 소비 합계) / 10: 마을 기부(town) / 9: 분기 목표·칭호(qtalk, goalDone, titles, activeTitle) / 8: streak(연속 접속) / 7: worthLog(월간 결산) / 6: bond.cut(완주 컷) / 5: 일일 의뢰(quest, questCorrect) 추가 — 없던 값은 merge가 기본값으로 채운다
+      version: 28, // 28: 부 직업(dun.sub) /  27: 직업은 성당에서 받는다(owned·seed) /  26: 클래스 6종·교차 장착·슬롯 5칸 / 25: 25: dun(던전 경험치·클래스·스킬) / 24: 24: weekly·events(주간 도전·이벤트) / 23: 23: starter(입문 과제) / 22: 22: 튜토리얼 8단계(생활 탭) / 21: 21: daily(오늘의 모험 목표 달성 일수) / 20: mounts·mount(탈것) / 19: love(히로인 인연) / 18: shop(내 상점) / 17: dlog(던전 재료·소모품·도감) / 16: act.tries(던전 하루 2회) / 15: act·fishLog·rod·earned(납품·낚시) / 14: loan(마나 은행) / 13: gather·mats(마을 일과) / 12: ownedLooks(눈·머리·옷 한정 모양) / 11: spent(영구 소비 합계) / 10: 마을 기부(town) / 9: 분기 목표·칭호(qtalk, goalDone, titles, activeTitle) / 8: streak(연속 접속) / 7: worthLog(월간 결산) / 6: bond.cut(완주 컷) / 5: 일일 의뢰(quest, questCorrect) 추가 — 없던 값은 merge가 기본값으로 채운다
       // 플레이어 데이터만 저장한다. 시장은 불러올 때 날짜로부터 다시 계산한다
-      partialize: (g) => ({ cash: g.cash, holdings: g.holdings, trades: g.trades, granted: g.granted, tutStep: g.tutStep, tutBaseDay: g.tutBaseDay, skipDays: g.skipDays, lastSeenDay: g.lastSeenDay, selected: g.selected, look: g.look, looked: g.looked, nick: g.nick, bond: g.bond, achv: g.achv, spent: g.spent, ownedLooks: g.ownedLooks, ownedProps: g.ownedProps, gather: g.gather, mats: g.mats, loan: g.loan, shop: g.shop, love: g.love, mounts: g.mounts, mount: g.mount, daily: g.daily, starter: g.starter, weekly: g.weekly, events: g.events, dlog: g.dlog, act: g.act, fishLog: g.fishLog, rod: g.rod, gear: g.gear, earned: g.earned, lastRelief: g.lastRelief, town: g.town, qtalk: g.qtalk, goalDone: g.goalDone, titles: g.titles, activeTitle: g.activeTitle, streak: g.streak, worthLog: g.worthLog, quest: g.quest, questCorrect: g.questCorrect, orders: g.orders, fired: g.fired, server: g.server, localBackup: g.localBackup, paidDay: g.paidDay }),
+      partialize: (g) => ({ cash: g.cash, holdings: g.holdings, trades: g.trades, granted: g.granted, tutStep: g.tutStep, tutBaseDay: g.tutBaseDay, skipDays: g.skipDays, lastSeenDay: g.lastSeenDay, selected: g.selected, look: g.look, looked: g.looked, nick: g.nick, bond: g.bond, achv: g.achv, spent: g.spent, ownedLooks: g.ownedLooks, ownedProps: g.ownedProps, gather: g.gather, mats: g.mats, loan: g.loan, shop: g.shop, love: g.love, mounts: g.mounts, mount: g.mount, daily: g.daily, starter: g.starter, weekly: g.weekly, events: g.events, dun: g.dun, dlog: g.dlog, act: g.act, fishLog: g.fishLog, rod: g.rod, gear: g.gear, earned: g.earned, lastRelief: g.lastRelief, town: g.town, qtalk: g.qtalk, goalDone: g.goalDone, titles: g.titles, activeTitle: g.activeTitle, streak: g.streak, worthLog: g.worthLog, quest: g.quest, questCorrect: g.questCorrect, orders: g.orders, fired: g.fired, server: g.server, localBackup: g.localBackup, paidDay: g.paidDay }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Game>;
         // 깨진 저장(숫자·객체가 아닌 값)이면 새 게임으로 시작한다: 시작조차 못 하는 것보다 낫다
         if (typeof p.cash !== 'number' || !p.holdings || typeof p.holdings !== 'object' || Array.isArray(p.holdings)) return current;
         const skipDays = p.skipDays ?? 0;
         const mk = marketAtDay(todayIdx() + skipDays);
-        return { ...current, ...p, selected: DEFAULT_CONFIG.stocks.some((x) => x.id === p.selected) ? (p.selected as string) : current.selected, paidDay: p.paidDay ?? mk.day, look: { ...DEFAULT_LOOK, ...(p.look ?? {}) }, looked: p.looked ?? p.granted ?? false, nick: typeof p.nick === 'string' ? cleanNick(p.nick) : '', spent: typeof p.spent === 'number' ? p.spent : 0, ownedLooks: Array.isArray(p.ownedLooks) ? p.ownedLooks.filter((k) => typeof k === 'string') : [], ownedProps: Array.isArray(p.ownedProps) ? p.ownedProps.filter((n) => typeof n === 'number') : [], gather: p.gather && typeof p.gather.day === 'number' && Array.isArray(p.gather.done) ? p.gather : { day: -1, done: [] }, weekly: p.weekly && p.weekly.stat && typeof p.weekly.stat.k === 'number' && typeof p.weekly.n === 'number' && typeof p.weekly.last === 'number' ? { stat: { k: p.weekly.stat.k, casts: Number(p.weekly.stat.casts) || 0, gathers: Number(p.weekly.stat.gathers) || 0, tries: Number(p.weekly.stat.tries) || 0, best: Number(p.weekly.stat.best) || 0, seen0: Number(p.weekly.stat.seen0) || 0 }, n: Math.max(0, Math.floor(p.weekly.n)), last: p.weekly.last } : { stat: freshWeek(-1, 0), n: 0, last: -1 }, events: Array.isArray(p.events) ? p.events.filter((x) => typeof x === 'string').slice(-40) : [], starter: typeof p.starter === 'number' && p.starter >= 0 && p.starter <= STARTER.length ? Math.floor(p.starter) : 0, daily: p.daily && typeof p.daily.last === 'number' && typeof p.daily.n === 'number' && p.daily.n >= 0 ? { last: p.daily.last, n: Math.floor(p.daily.n) } : { last: -1, n: 0 }, mounts: Array.isArray(p.mounts) ? [...new Set(p.mounts.filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_MOUNT))] : [], mount: typeof p.mount === 'number' && Array.isArray(p.mounts) && p.mounts.includes(p.mount) ? p.mount : 0, love: p.love && typeof p.love.id === 'string' && LOVE[p.love.id] && typeof p.love.stage === 'number' && p.love.stage >= 0 && p.love.stage <= STAGE.married && typeof p.love.day === 'number' ? { id: p.love.id, stage: Math.floor(p.love.stage), day: p.love.day } : null, shop: p.shop && typeof p.shop.name === 'string' && typeof p.shop.lv === 'number' && p.shop.lv >= 1 && p.shop.lv <= SHOP_MAX ? { name: cleanShop(p.shop.name), lv: Math.floor(p.shop.lv) } : null, dlog: p.dlog && Array.isArray(p.dlog.seen) && p.dlog.mats && typeof p.dlog.mats === 'object' && p.dlog.items ? { seen: p.dlog.seen.filter((n) => typeof n === 'number'), mats: Object.fromEntries(Object.entries(p.dlog.mats).filter(([, v]) => typeof v === 'number' && v >= 0)), items: { potion: Math.min(ITEM_LIMIT, Math.max(0, Number(p.dlog.items.potion) || 0)), charm: Math.min(ITEM_LIMIT, Math.max(0, Number(p.dlog.items.charm) || 0)) } } : { seen: [], mats: {}, items: { potion: 0, charm: 0 } }, act: p.act && typeof p.act.day === 'number' && typeof p.act.sold === 'number' && typeof p.act.fished === 'number' && typeof p.act.casts === 'number' ? { day: p.act.day, sold: p.act.sold, fished: p.act.fished, casts: p.act.casts, dove: typeof p.act.dove === 'number' ? p.act.dove : 0, tries: typeof (p.act as { tries?: number }).tries === 'number' ? (p.act as { tries: number }).tries : 0 } : { day: -1, sold: 0, fished: 0, casts: 0, dove: 0, tries: 0 }, fishLog: p.fishLog && typeof p.fishLog === 'object' && !Array.isArray(p.fishLog) ? p.fishLog : {}, gear: typeof p.gear === 'number' && p.gear >= 1 && p.gear <= MAX_GEAR ? p.gear : 1, rod: typeof p.rod === 'number' && p.rod >= 1 && p.rod <= MAX_ROD ? p.rod : 1, earned: typeof p.earned === 'number' && p.earned >= 0 ? p.earned : 0, loan: p.loan && typeof p.loan.principal === 'number' && p.loan.principal > 0 && typeof p.loan.cap === 'number' && typeof p.loan.paidInterest === 'number' && typeof p.loan.paidDay === 'number' ? p.loan : null, mats: p.mats && typeof p.mats === 'object' && !Array.isArray(p.mats) ? Object.fromEntries(Object.entries(p.mats).filter(([, v]) => typeof v === 'number' && v >= 0)) : {}, lastRelief: typeof p.lastRelief === 'number' ? p.lastRelief : -9999, town: p.town && typeof p.town === 'object' && !Array.isArray(p.town) ? p.town : {}, qtalk: p.qtalk && typeof p.qtalk.n === 'number' && typeof p.qtalk.key === 'number' ? p.qtalk : { key: -1, n: 0 }, goalDone: Array.isArray(p.goalDone) ? p.goalDone : [], titles: Array.isArray(p.titles) ? p.titles : [], activeTitle: typeof p.activeTitle === 'string' ? p.activeTitle : null, streak: p.streak && typeof p.streak.n === 'number' && typeof p.streak.last === 'number' ? p.streak : { last: -1, n: 0 }, worthLog: p.worthLog && typeof p.worthLog === 'object' ? p.worthLog : {}, quest: p.quest && typeof p.quest.day === 'number' && p.quest.ans ? p.quest : { day: -1, ans: {} }, questCorrect: typeof p.questCorrect === 'number' ? p.questCorrect : 0, server: p.server && typeof p.server.url === 'string' && typeof p.server.token === 'string' ? p.server : null, localBackup: p.localBackup ?? null, orders: Array.isArray(p.orders) ? p.orders : [], fired: Array.isArray(p.fired) ? p.fired : [], bond: p.bond ?? {}, achv: p.achv ?? {}, trades: p.trades ?? [], skipDays, market: view(mk) };
+        return { ...current, ...p, selected: DEFAULT_CONFIG.stocks.some((x) => x.id === p.selected) ? (p.selected as string) : current.selected, paidDay: p.paidDay ?? mk.day, look: { ...DEFAULT_LOOK, ...(p.look ?? {}) }, looked: p.looked ?? p.granted ?? false, nick: typeof p.nick === 'string' ? cleanNick(p.nick) : '', spent: typeof p.spent === 'number' ? p.spent : 0, ownedLooks: Array.isArray(p.ownedLooks) ? p.ownedLooks.filter((k) => typeof k === 'string') : [], ownedProps: Array.isArray(p.ownedProps) ? p.ownedProps.filter((n) => typeof n === 'number') : [], gather: p.gather && typeof p.gather.day === 'number' && Array.isArray(p.gather.done) ? p.gather : { day: -1, done: [] }, dun: p.dun && typeof p.dun.xp === 'number' ? { xp: Math.max(0, Math.floor(p.dun.xp)), cls: CLS_LIST.includes(p.dun.cls as Cls) ? (p.dun.cls as Cls) : null, ranks: p.dun.ranks && typeof p.dun.ranks === 'object' ? Object.fromEntries(Object.entries(p.dun.ranks).filter(([k, v]) => SKILL_BY_ID[k] && typeof v === 'number' && v >= 0 && v <= MAX_RANK)) : {}, slots: Array.isArray(p.dun.slots) ? p.dun.slots.filter((x) => typeof x === 'string' && SKILL_BY_ID[x]).slice(0, SLOT_COUNT) : [], swapDay: typeof p.dun.swapDay === 'number' ? p.dun.swapDay : -1, owned: ownedOf(p.dun), sub: subOf(p.dun), seed: typeof (p.dun as { seed?: number }).seed === 'number' ? (p.dun as { seed: number }).seed : newSeed() } : { xp: 0, cls: null, ranks: {}, slots: [], swapDay: -1, owned: [], seed: newSeed(), sub: null }, weekly: p.weekly && p.weekly.stat && typeof p.weekly.stat.k === 'number' && typeof p.weekly.n === 'number' && typeof p.weekly.last === 'number' ? { stat: { k: p.weekly.stat.k, casts: Number(p.weekly.stat.casts) || 0, gathers: Number(p.weekly.stat.gathers) || 0, tries: Number(p.weekly.stat.tries) || 0, best: Number(p.weekly.stat.best) || 0, seen0: Number(p.weekly.stat.seen0) || 0 }, n: Math.max(0, Math.floor(p.weekly.n)), last: p.weekly.last } : { stat: freshWeek(-1, 0), n: 0, last: -1 }, events: Array.isArray(p.events) ? p.events.filter((x) => typeof x === 'string').slice(-40) : [], starter: typeof p.starter === 'number' && p.starter >= 0 && p.starter <= STARTER.length ? Math.floor(p.starter) : 0, daily: p.daily && typeof p.daily.last === 'number' && typeof p.daily.n === 'number' && p.daily.n >= 0 ? { last: p.daily.last, n: Math.floor(p.daily.n) } : { last: -1, n: 0 }, mounts: Array.isArray(p.mounts) ? [...new Set(p.mounts.filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_MOUNT))] : [], mount: typeof p.mount === 'number' && Array.isArray(p.mounts) && p.mounts.includes(p.mount) ? p.mount : 0, love: p.love && typeof p.love.id === 'string' && LOVE[p.love.id] && typeof p.love.stage === 'number' && p.love.stage >= 0 && p.love.stage <= STAGE.married && typeof p.love.day === 'number' ? { id: p.love.id, stage: Math.floor(p.love.stage), day: p.love.day } : null, shop: p.shop && typeof p.shop.name === 'string' && typeof p.shop.lv === 'number' && p.shop.lv >= 1 && p.shop.lv <= SHOP_MAX ? { name: cleanShop(p.shop.name), lv: Math.floor(p.shop.lv) } : null, dlog: p.dlog && Array.isArray(p.dlog.seen) && p.dlog.mats && typeof p.dlog.mats === 'object' && p.dlog.items ? { seen: p.dlog.seen.filter((n) => typeof n === 'number'), mats: Object.fromEntries(Object.entries(p.dlog.mats).filter(([, v]) => typeof v === 'number' && v >= 0)), items: { potion: Math.min(ITEM_LIMIT, Math.max(0, Number(p.dlog.items.potion) || 0)), charm: Math.min(ITEM_LIMIT, Math.max(0, Number(p.dlog.items.charm) || 0)) } } : { seen: [], mats: {}, items: { potion: 0, charm: 0 } }, act: p.act && typeof p.act.day === 'number' && typeof p.act.sold === 'number' && typeof p.act.fished === 'number' && typeof p.act.casts === 'number' ? { day: p.act.day, sold: p.act.sold, fished: p.act.fished, casts: p.act.casts, dove: typeof p.act.dove === 'number' ? p.act.dove : 0, tries: typeof (p.act as { tries?: number }).tries === 'number' ? (p.act as { tries: number }).tries : 0 } : { day: -1, sold: 0, fished: 0, casts: 0, dove: 0, tries: 0 }, fishLog: p.fishLog && typeof p.fishLog === 'object' && !Array.isArray(p.fishLog) ? p.fishLog : {}, gear: typeof p.gear === 'number' && p.gear >= 1 && p.gear <= MAX_GEAR ? p.gear : 1, rod: typeof p.rod === 'number' && p.rod >= 1 && p.rod <= MAX_ROD ? p.rod : 1, earned: typeof p.earned === 'number' && p.earned >= 0 ? p.earned : 0, loan: p.loan && typeof p.loan.principal === 'number' && p.loan.principal > 0 && typeof p.loan.cap === 'number' && typeof p.loan.paidInterest === 'number' && typeof p.loan.paidDay === 'number' ? p.loan : null, mats: p.mats && typeof p.mats === 'object' && !Array.isArray(p.mats) ? Object.fromEntries(Object.entries(p.mats).filter(([, v]) => typeof v === 'number' && v >= 0)) : {}, lastRelief: typeof p.lastRelief === 'number' ? p.lastRelief : -9999, town: p.town && typeof p.town === 'object' && !Array.isArray(p.town) ? p.town : {}, qtalk: p.qtalk && typeof p.qtalk.n === 'number' && typeof p.qtalk.key === 'number' ? p.qtalk : { key: -1, n: 0 }, goalDone: Array.isArray(p.goalDone) ? p.goalDone : [], titles: Array.isArray(p.titles) ? p.titles : [], activeTitle: typeof p.activeTitle === 'string' ? p.activeTitle : null, streak: p.streak && typeof p.streak.n === 'number' && typeof p.streak.last === 'number' ? p.streak : { last: -1, n: 0 }, worthLog: p.worthLog && typeof p.worthLog === 'object' ? p.worthLog : {}, quest: p.quest && typeof p.quest.day === 'number' && p.quest.ans ? p.quest : { day: -1, ans: {} }, questCorrect: typeof p.questCorrect === 'number' ? p.questCorrect : 0, server: p.server && typeof p.server.url === 'string' && typeof p.server.token === 'string' ? p.server : null, localBackup: p.localBackup ?? null, orders: Array.isArray(p.orders) ? p.orders : [], fired: Array.isArray(p.fired) ? p.fired : [], bond: p.bond ?? {}, achv: p.achv ?? {}, trades: p.trades ?? [], skipDays, market: view(mk) };
       },
       migrate: (old, version) => {
         const o = old as Record<string, unknown>;

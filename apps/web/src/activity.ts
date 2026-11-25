@@ -1,5 +1,6 @@
 import type { Season } from '@mana/engine';
 import { EVENT_FISH_VALUE, eventOf } from './events';
+import { specialOf } from './special';
 import { weatherKind } from './calendar';
 import { hash } from './scene/hash';
 import type { MatKind } from './gather';
@@ -27,8 +28,8 @@ export function fishTier(day: number, cast: number, rod: number): number {
 
 /** 던전(결정적 턴제, `dungeon.ts`): 하루 2번 들어가고 마나는 그날 가장 좋은 기록만큼만 받는다(하루 40). 장비 단계가 스탯을 정한다 */
 export const DIVE_CAP = 40;
-export const GEAR_PRICE: Record<number, number> = { 2: 800, 3: 2000, 4: 4500, 5: 8000, 6: 12000 };
-export const MAX_GEAR = 6; // 5단계는 15층, 6단계는 20층까지 내려갈 수 있다
+export const GEAR_PRICE: Record<number, number> = { 2: 800, 3: 2000, 4: 4500 };
+export const MAX_GEAR = 4; // 마나로 사는 장비 단계는 기본 스탯 바닥만 정한다(성장은 레벨·스킬·유물). 예전에 5·6단계를 산 저장은 그대로 인정한다
 
 /** ── 미니게임 판정(순수): 찌 게이지가 0~1 사이를 왕복하고, 중앙(0.5) 구간에서 멈추면 정확도 점수 0~3 ── */
 export const triangle = (t: number) => { const x = ((t % 2) + 2) % 2; return x < 1 ? x : 2 - x; };
@@ -78,9 +79,9 @@ export const letterOf = (day: number, cast: number) => LETTERS[Math.floor(hash(d
 export function catchOf(day: number, cast: number, rod: number): Catch {
   const ev = eventOf(day);
   if (ev && hash(day, cast, 81) < 0.2) return { kind: 'event', id: `e:${ev.id}`, name: `${ev.name} 잉어`, value: EVENT_FISH_VALUE, level: 3, key: `e:${ev.id}` }; // 축제·기념일의 축제 물고기
-  const r = hash(day, cast, 78);
-  if (r < 0.6) { const tier = fishTier(day, cast, rod); return { kind: 'fish', id: `t${tier}`, name: '', value: FISH_VALUE[tier - 1], level: tier, key: `t${tier}` }; }
-  if (r < 0.8) { const pool = CREATURES.filter((c) => c.rod <= rod), c = pool[Math.floor(hash(day, cast, 79) * pool.length)]; return { kind: 'creature', id: c.id, name: c.name, value: c.value, level: c.level, key: `c:${c.id}` }; }
+  const r = hash(day, cast, 78), fishShare = specialOf(day).id === 'bigcatch' ? 0.35 : 0.6; // 풍어의 날엔 생물·물건이 두 배쯤
+  if (r < fishShare) { const tier = fishTier(day, cast, rod); return { kind: 'fish', id: `t${tier}`, name: '', value: FISH_VALUE[tier - 1], level: tier, key: `t${tier}` }; }
+  if (r < fishShare + (1 - fishShare) / 2) { const pool = CREATURES.filter((c) => c.rod <= rod), c = pool[Math.floor(hash(day, cast, 79) * pool.length)]; return { kind: 'creature', id: c.id, name: c.name, value: c.value, level: c.level, key: `c:${c.id}` }; }
   const pool = FOUND_ITEMS.filter((c) => c.rod <= rod), c = pool[Math.floor(hash(day, cast, 79) * pool.length)];
   return { kind: 'item', id: c.id, name: c.name, value: 0, level: 2, key: `i:${c.id}` };
 }

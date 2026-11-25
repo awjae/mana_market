@@ -16,7 +16,7 @@ import { PS } from './pix';
 import { sx, sy } from './iso';
 import { heroPos, isTouch, pad } from './input';
 import { useActivity } from '../ui/activityStore';
-import { ALL_SPOTS_WITH_DIVE as ALL_SPOTS, DIVE_SPOT, FISH_SPOT } from '../gather';
+import { ALL_SPOTS_WITH_DIVE as ALL_SPOTS, DIVE_SPOT, FISH_SPOT, TEMPLE_SPOT } from '../gather';
 import { ENTS, GUILDS, START, findPath, nearestWalkable, walkable } from './map';
 import { buildWorld } from './world';
 
@@ -48,6 +48,7 @@ export function IsoWorld({ W, H, heroY, shift, sky, weather, overlay, onTalk, ch
     if (useGame.getState().server) return say('서버 모드에서는 쓸 수 없어요');
     if (id === FISH_SPOT.id) return openIt({ kind: 'fish' });
     if (id === DIVE_SPOT.id) return openIt({ kind: 'dive' });
+    if (id === TEMPLE_SPOT.id) return openIt({ kind: 'temple' });
     return openIt({ kind: 'gather', spot: id });
   };
   const gatherRef = useRef(doGather); gatherRef.current = doGather;
@@ -338,7 +339,7 @@ export function IsoWorld({ W, H, heroY, shift, sky, weather, overlay, onTalk, ch
         {nearSpot !== null && !nearH && (
           <button onClick={doGather} className="panel-flat pop-in pointer-events-auto absolute flex items-center gap-1.5 bg-[#f1ffe8] px-2.5 py-1 text-[12px] font-black" style={{ left: W / 2 - 58, top: heroY + (near ? 56 : 26) }}>
             <kbd className={`rounded-[2px] border-2 border-ink bg-paper px-1 text-[10px] shadow-[1px_1px_0_#35244a] ${isTouch() ? 'font-sans font-black' : 'font-display'}`}>{isTouch() ? '탭' : 'E'}</kbd>
-            {ALL_SPOTS[nearSpot].label} {nearSpot === FISH_SPOT.id ? '낚시하기' : nearSpot === DIVE_SPOT.id ? '내려가기' : '살펴보기'}
+            {ALL_SPOTS[nearSpot].label} {nearSpot === FISH_SPOT.id ? '낚시하기' : nearSpot === DIVE_SPOT.id ? '내려가기' : nearSpot === TEMPLE_SPOT.id ? '들어가기' : '살펴보기'}
           </button>
         )}
         {nearH && (

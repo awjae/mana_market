@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { GRANT_NEED, grantChoices, CLS_LIST, type Cls } from './skills';
 import { eventOf } from './events';
 import { dividendPerShare, fantasyDate, isDividendDay, marketAtDay } from '@mana/engine';
 
@@ -451,7 +452,7 @@ describe('생활 업적(마나 보상 없음)', () => {
     expect(ok('craft-1', { ownedProps: [11] })).toBe(false); expect(ok('craft-1', { ownedProps: [17] })).toBe(true);
     expect(ok('my-shop', { shop: { name: 'a가게', lv: 1 } })).toBe(true); expect(ok('rider', { mounts: [1] })).toBe(true);
     expect(ok('married', { love: { id: 'noa', stage: 5, day: 1 } })).toBe(false); expect(ok('married', { love: { id: 'noa', stage: 6, day: 1 } })).toBe(true);
-    expect(ok('town-grow', { town: { market: 1 } })).toBe(true); expect(ok('gear-max', { gear: 6 })).toBe(true); expect(ok('gear-max', { gear: 5 })).toBe(false); expect(ok('event-1', { events: ['1030:fest-0'] })).toBe(true); expect(ok('rod-max', { rod: 3 })).toBe(false);
+    expect(ok('town-grow', { town: { market: 1 } })).toBe(true); expect(ok('gear-max', { gear: 4 })).toBe(true); expect(ok('gear-max', { gear: 3 })).toBe(false); expect(ok('event-1', { events: ['1030:fest-0'] })).toBe(true); expect(ok('rod-max', { rod: 3 })).toBe(false);
   });
 });
 
@@ -519,5 +520,64 @@ describe('주간 도전·이벤트 달성', () => {
     S.useGame.setState({ granted: true, server: null, titles: [], activeTitle: null, events: [], act: { day: evDay, sold: 0, fished: 0, casts: 3, dove: 0, tries: 1 }, gather: { day: evDay, done: [], n: 3 }, market: marketAtDay(evDay) });
     expect(S.useGame.getState().checkEvent()).toBe(eventOf(evDay)!.name);
     expect(S.useGame.getState().titles[0]).toContain('손님'); expect(S.useGame.getState().checkEvent()).toBeNull();
+  });
+});
+
+describe('던전 RPG: 클래스·스킬·경험치', () => {
+  const base = { granted: true, server: null, market: marketAtDay(200), dun: { xp: 0, cls: null as null | Cls, ranks: {} as Record<string, number>, slots: [] as string[], swapDay: -1, owned: [] as Cls[], seed: 7, sub: null as Cls | null }, spent: 0 };
+  it('성당: 문턱을 넘어야 직업을 받고, 후보 3개 중 하나만 고를 수 있으며 후보는 다시 열어도 같다', () => {
+    S.useGame.setState(base);
+    expect(S.useGame.getState().grantCls('mage')).toContain('아직'); expect(S.useGame.getState().chooseCls('mage')).toContain('성당');
+    S.useGame.setState({ spent: GRANT_NEED[0] });
+    const c = grantChoices(7, []); expect(c).toHaveLength(3); expect(grantChoices(7, [])).toEqual(c);
+    const out = CLS_LIST.find((x) => !c.includes(x))!; expect(S.useGame.getState().grantCls(out)).toContain('후보');
+    expect(S.useGame.getState().grantCls(c[0])).toBeNull(); expect(S.useGame.getState().dun.cls).toBe(c[0]); expect(S.useGame.getState().dun.owned).toEqual([c[0]]);
+    expect(S.useGame.getState().grantCls(c[1])).toContain('아직'); // 다음 문턱은 더 높다
+    S.useGame.setState({ spent: GRANT_NEED[1] }); const c2 = grantChoices(7, [c[0]]); expect(c2).not.toContain(c[0]);
+    expect(S.useGame.getState().grantCls(c2[0])).toBeNull(); expect(S.useGame.getState().chooseCls(c[0])).toBeNull(); expect(S.useGame.getState().dun.cls).toBe(c[0]);
+    expect(S.useGame.getState().chooseCls(c2[0])).toBeNull(); expect(S.useGame.getState().dun.cls).toBe(c2[0]);
+  });
+  it('스킬은 포인트가 있어야 배우고 강화하며, 랭크는 3까지, 배우면 빈 칸에 장착된다', () => {
+    S.useGame.setState({ ...base, dlog: { seen: [], mats: {}, items: { potion: 0, charm: 0 } }, fishLog: {}, dun: { ...base.dun, cls: 'warrior', slots: ['w_bash', 'w_guard'], xp: 0, owned: ['warrior'] } });
+    expect(S.useGame.getState().learnSkill('w_cleave')).toBe(null); // 레벨 1 = 1점
+    expect(S.useGame.getState().dun.ranks.w_cleave).toBe(1); expect(S.useGame.getState().dun.slots).toContain('w_cleave');
+    expect(S.useGame.getState().learnSkill('w_rally')).toContain('포인트가 없어요');
+    expect(S.useGame.getState().learnSkill('a_blast')).toContain('받지 못한'); // 성당에서 받지 않은 직업
+    S.useGame.setState({ dun: { ...S.useGame.getState().dun, xp: 100000 } }); // 레벨 20 = 10점
+    for (let i = 0; i < 2; i++) expect(S.useGame.getState().learnSkill('w_cleave')).toBeNull();
+    expect(S.useGame.getState().learnSkill('w_cleave')).toBe('이미 가장 높은 랭크예요');
+  });
+  it('장착 토글은 5칸까지(주 계열 밖은 2칸), 경험치는 쌓인다', () => {
+    S.useGame.setState({ ...base, dun: { ...base.dun, cls: 'warrior', owned: ['warrior'], ranks: { w_cleave: 1, w_counter: 1, w_rally: 1 }, slots: ['w_bash', 'w_guard'] } });
+    S.useGame.getState().toggleSlot('w_cleave'); S.useGame.getState().toggleSlot('w_counter'); S.useGame.getState().toggleSlot('w_rally');
+    expect(S.useGame.getState().dun.slots).toHaveLength(5); S.useGame.getState().toggleSlot('w_bash'); expect(S.useGame.getState().dun.slots).not.toContain('w_bash');
+    S.useGame.getState().addXp(30); S.useGame.getState().addXp(-5); expect(S.useGame.getState().dun.xp).toBe(30);
+  });
+});
+
+describe('던전 RPG: 부 직업', () => {
+  it('성당에서 부 직업을 켜고 끌 수 있고, 주 직업과 같거나 받지 않은 직업은 안 된다', () => {
+    S.useGame.setState({ granted: true, server: null, dun: { xp: 0, cls: 'warrior', ranks: {}, slots: ['w_bash', 'w_guard'], swapDay: -1, owned: ['warrior', 'mage'], seed: 7, sub: null }, spent: 0 });
+    expect(S.useGame.getState().setSub('mage')).toContain('이상 쓰면'); S.useGame.setState({ spent: 5000 });
+    expect(S.useGame.getState().setSub('warrior')).toContain('켤 수 없는'); expect(S.useGame.getState().setSub('rogue')).toContain('켤 수 없는');
+    expect(S.useGame.getState().setSub('mage')).toBeNull(); S.useGame.getState().toggleSlot('m_fire'); S.useGame.getState().toggleSlot('r_stab');
+    expect(S.useGame.getState().dun.slots).toEqual(['w_bash', 'w_guard', 'm_fire']);
+    expect(S.useGame.getState().setSub(null)).toBeNull(); expect(S.useGame.getState().dun.slots).toEqual(['w_bash', 'w_guard']); // 끄면 부 직업 스킬이 빠진다
+    S.useGame.getState().setSub('mage'); S.useGame.getState().chooseCls('mage'); expect(S.useGame.getState().dun.sub).toBeNull(); // 주 직업이 되면 부 직업에서 빠진다
+  });
+});
+
+describe('던전 RPG: 받은 직업끼리 교차 장착', () => {
+  const base = { granted: true, server: null, market: marketAtDay(200), dlog: { seen: [] as number[], mats: {}, items: { potion: 0, charm: 0 } }, fishLog: {}, dun: { xp: 100000, cls: 'warrior' as Cls, owned: ['warrior', 'mage', 'alchemist'] as Cls[], seed: 7, sub: 'mage' as Cls | null, ranks: {} as Record<string, number>, slots: ['w_bash', 'w_guard'] as string[], swapDay: -1 } };
+  it('다른 계열의 스킬도 배워 장착하되 주 계열이 아닌 스킬은 2칸까지', () => {
+    S.useGame.setState(base);
+    S.useGame.getState().toggleSlot('m_fire'); S.useGame.getState().toggleSlot('m_ice'); S.useGame.getState().toggleSlot('r_stab');
+    expect(S.useGame.getState().dun.slots.filter((id) => !id.startsWith('w_'))).toEqual(['m_fire', 'm_ice']); // 셋째 교차 스킬은 들어가지 않는다
+    expect(S.useGame.getState().learnSkill('m_bolt')).toBeNull(); expect(S.useGame.getState().dun.ranks.m_bolt).toBe(1);
+  });
+  it('계열을 바꿔도 기존 장착 중 새 주 계열 기준으로 교차 2칸만 남는다', () => {
+    S.useGame.setState({ ...base, dun: { ...base.dun, slots: ['w_bash', 'w_guard', 'm_fire', 'm_ice'] } });
+    S.useGame.getState().chooseCls('alchemist');
+    const sl = S.useGame.getState().dun.slots; expect(sl.filter((id) => !id.startsWith('a_')).length).toBeLessThanOrEqual(2); expect(sl.length).toBeLessThanOrEqual(5);
   });
 });

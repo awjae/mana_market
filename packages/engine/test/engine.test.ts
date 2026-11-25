@@ -59,7 +59,7 @@ describe('가격 안정성 (20 시드 × 365일)', () => {
     expect(Math.abs(mean)).toBeLessThan(0.003);
     expect(sd).toBeGreaterThan(0.01);
     expect(sd).toBeLessThan(0.05); // 가상 자산이라 변동성을 크게 둔다(v9)
-    expect(big).toBeLessThan(0.03); // ±10% 초과는 드물어야 함(v9에서 변동성을 키웠다)
+    expect(big).toBeLessThan(0.045); // ±10% 초과는 드물어야 함(v9·v11에서 변동성을 키웠다)
   });
 });
 

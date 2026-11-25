@@ -236,6 +236,21 @@ export function cave(): Sprite {
     b.rect(30, 20, 13, 4, hex('#d8d0b8')); b.set(32, 21, dark); b.set(36, 21, dark); b.set(40, 21, dark); // 간판 대신 뼈 표식
   });
 }
+/** 성당: 직업을 내려 주는 곳. 흰 돌벽에 푸른 지붕, 가운데 종탑과 별 문양 */
+export function temple(): Sprite {
+  return sprite('temple', 76, 70, 38, 62, (s) => {
+    const b = s.b, stone = hex('#e8e2f0'), roof = hex('#4a6fd0'), dark = hex('#2a1f38'), gold = hex('#ffc13b');
+    b.rect(8, 34, 60, 26, mixc(stone, PURPLE, 0.12)); b.rect(8, 34, 8, 26, lite(stone, 0.12)); b.rect(8, 56, 60, 4, mixc(stone, PURPLE, 0.4));
+    b.poly([[4, 36], [38, 20], [72, 36], [38, 40]], roof); b.poly([[4, 36], [38, 20], [38, 40]], lite(roof, 0.2));
+    b.rect(28, 8, 20, 36, mixc(stone, PURPLE, 0.08)); b.rect(28, 8, 6, 36, lite(stone, 0.14));
+    b.poly([[26, 10], [38, 0], [50, 10]], roof); b.poly([[26, 10], [38, 0], [38, 10]], lite(roof, 0.25));
+    b.ellipse(38, 18, 4.5, 4.5, dark); b.ellipse(38, 18, 3, 3, gold); b.set(38, 18, hex('#fff2b8'));
+    b.rect(32, 28, 12, 4, dark); b.rect(33, 29, 10, 2, hex('#6a5a8a'));
+    b.ellipse(38, 52, 7, 8, dark); b.rect(31, 52, 14, 8, dark); b.rect(32, 53, 12, 6, hex('#7a4a8a'));
+    for (const x of [14, 56]) { b.rect(x, 42, 6, 12, dark); b.ellipse(x + 3, 42, 3, 3, dark); b.rect(x + 1, 44, 4, 9, hex('#9ad0ff')); }
+    b.rect(36, 3, 3, 1, gold); b.rect(37, 0, 1, 4, gold);
+  });
+}
 export function fence(o: 'x' | 'y'): Sprite {
   return sprite(`fence:${o}`, 40, 28, 20, 20, (s) => {
     const m = mat('#8a6a48');

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { fantasyDate } from '@mana/engine';
 import { CATCH_LABEL, CREATURES, FOUND_ITEMS, ACTIVITY_CAP, DIVE_CAP, FISH_CAP, GEAR_PRICE, FISH_NAMES, FISH_VALUE, MAX_ROD, ROD_PRICE, SELL_CAP, SELL_PRICE, fishKey } from '../activity';
-import { ITEMS, ITEM_LIMIT, LOOT, MONSTER_NAMES, maxFloorFor, playerStats, type ItemId } from '../dungeon';
+import { ITEMS, ITEM_LIMIT, LOOT, MONSTER_NAMES, playerStats, type ItemId } from '../dungeon';
 import { MAT_KINDS, MAT_LABEL, matName } from '../gather';
 import { fmt0 } from '../format';
 import { useGame } from '../store';
@@ -50,7 +50,7 @@ export function DailyPanel({ bare }: { bare?: boolean } = {}) {
         </div>
         <div>
           <p className="m-0 mb-1 text-[12.5px] font-black">던전 <span className="font-num text-[11px] font-bold text-ink2">오늘 {today.tries}번, {fmt0(today.dove)}/{DIVE_CAP} 마나</span></p>
-          <p className="m-0 mb-1 text-[11.5px] font-bold text-ink2">광장 위쪽 동굴 입구에서 몇 번이고 들어갈 수 있어요. 몬스터가 다음 행동을 알려 주니 보고 [공격] [방어] [강타]를 골라요. 장비 {gear}단계라 {maxFloorFor(gear)}층까지 가요(5층마다 보스). 깬 층마다 4 마나, 보스를 쓰러뜨리면 8 마나를 더 받아요. 체력 {playerStats(gear).hp}, 공격 {playerStats(gear).atk}, 방어 {playerStats(gear).def}(장비 {gear}단계).</p>
+          <p className="m-0 mb-1 text-[11.5px] font-bold text-ink2">광장 위쪽 동굴 입구에서 몇 번이고 들어갈 수 있어요. 클래스(전사·마법사·도적)를 고르고 스킬을 배워 몬스터와 싸우며 경험치를 모아 레벨을 올려요. 3층마다 유물을 고르고 층 사이에 길을 골라요(5층마다 보스, 20층까지). 깬 층마다 4 마나, 보스를 쓰러뜨리면 8 마나를 더 받아요. 장비 {gear}단계는 기본 체력 {playerStats(gear).hp}, 공격 {playerStats(gear).atk}, 방어 {playerStats(gear).def}를 정해요(레벨이 더해져요).</p>
           {nextGear !== undefined && (
             <button disabled={!!server || cash < nextGear} onClick={() => { if (!askGear) { setAskGear(true); setMsg(null); setTimeout(() => setAskGear(false), 4000); return; } setAskGear(false); setMsg(buyGear() ?? '장비를 바꿨어요.'); }} className={`${btn} min-w-[140px]`}>
               {askGear ? `${fmt0(nextGear)} 마나 쓰기` : `장비 ${gear + 1}단계 ${fmt0(nextGear)} 마나`}

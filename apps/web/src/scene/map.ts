@@ -12,7 +12,7 @@ import { hash, vnoise } from './hash';
 export const N = 44;
 /** g 풀 · F 숲바닥 · r 길 · p 광장 · d 흙 · w 물 · s 모래 · f 밭 · k 자갈 · m 늪 · b 부두 판자 */
 export type Terrain = 'g' | 'F' | 'r' | 'p' | 'd' | 'w' | 's' | 'f' | 'k' | 'm' | 'b';
-export type EntKind = 'house' | 'tree' | 'bush' | 'flowers' | 'rock' | 'fence' | 'hay' | 'scarecrow' | 'boat' | 'mushroom' | 'dummy' | 'cow' | 'well' | 'stall' | 'cart' | 'barrels' | 'lamp' | 'banner' | 'lantern' | 'cave' | 'fountain' | 'castle' | 'guild';
+export type EntKind = 'house' | 'tree' | 'bush' | 'flowers' | 'rock' | 'fence' | 'hay' | 'scarecrow' | 'boat' | 'mushroom' | 'dummy' | 'cow' | 'well' | 'stall' | 'cart' | 'barrels' | 'temple' | 'lamp' | 'banner' | 'lantern' | 'cave' | 'fountain' | 'castle' | 'guild';
 export interface Ent { kind: EntKind; x: number; y: number; v?: number; o?: 'x' | 'y'; id?: string }
 
 /** 길드: 건물 타일과 서는 타일(길 위). 서는 위치는 타일 중심 */
