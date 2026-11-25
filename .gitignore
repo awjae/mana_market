@@ -1,11 +1,48 @@
-node_modules
-dist
+# 의존성·빌드 결과
+node_modules/
+dist/
 *.tsbuildinfo
-.DS_Store
-*.log
-coverage
-# 개발용 서버 데이터(계정·토큰 해시)와 백업은 올리지 않는다
+coverage/
+.vite/
+.cache/
+
+# 환경 변수·비밀 (이 프로젝트는 아직 쓰지 않지만 실수로 올라가지 않게)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 개발용 서버 데이터(계정·토큰 해시)와 백업은 올리지 않는다 (MANA_DB로 경로를 바꿔도 같은 이름은 제외)
 apps/server/data.json
 apps/server/data.json.*
 apps/server/*.bak
+apps/server/backup*/
+data.json
+*.db
+
+# 로그
+*.log
+npm-debug.log*
+
+# 에디터·OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# 테스트·스크린샷 임시 결과
+playwright-report/
+test-results/
+/tmp/
+scratch/
+
+# 일러스트 변환 도구가 쓰는 가상환경
+.venv/
+venv/
+rv/
+
+# Claude Code 개인 설정(공유하는 agents, settings.json은 올린다)
 .claude/settings.local.json
