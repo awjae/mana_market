@@ -18,7 +18,7 @@ const quiet: EngineConfig = {
 };
 const withEffect = (schedule: number[], magnitude: number) => ({
   ...createMarket(1, quiet),
-  effects: [{ eventId: 'x', stockIds: ['IRON'], magnitude, schedule, age: 0 }],
+  effects: [{ eventId: 'x', stockIds: ['IRON'], magnitude, schedule, age: -1 }], // 다음 날 schedule[0]부터 적용
 });
 const iron = (s: MarketState) => s.history.IRON;
 const ret = (s: MarketState, i: number) => iron(s)[i] / iron(s)[i - 1] - 1;
@@ -82,16 +82,26 @@ describe('이벤트 충격', () => {
     expect(iron(s)[3]).toBeLessThan(iron(s)[0]);
     expect(iron(s)[3]).toBeGreaterThan(iron(s)[1]);
   });
-  it('뉴스 당일엔 가격이 안 변하고 다음 날 시가에 반영된다', () => {
-    const cfg: EngineConfig = {
-      ...quiet,
-      eventChance: { stock: 0, sector: 0, kingdom: 1 },
-      templates: quiet.templates.filter((t) => t.id === 'kingdom_festival').map((t) => ({ ...t, rumorChance: 0 })),
-    };
-    const s1 = nextDay(createMarket(1, cfg), cfg);
+  const festivalOnly: EngineConfig = {
+    ...quiet,
+    eventChance: { stock: 0, sector: 0, kingdom: 1 },
+    templates: quiet.templates.filter((t) => t.id === 'kingdom_festival').map((t) => ({ ...t, rumorChance: 0 })),
+  };
+  it('공시의 첫 충격은 공시가 보이는 날의 시가에 이미 반영된다', () => {
+    const s1 = nextDay(createMarket(1, festivalOnly), festivalOnly);
     expect(s1.news[0].kind).toBe('disclosure');
-    expect(s1.prices.IRON).toBe(120);
-    expect(nextDay(s1, cfg).prices.IRON).toBeGreaterThan(120);
+    expect(s1.opens.IRON[1]).toBeGreaterThan(120);
+    expect(s1.prices.IRON).toBeGreaterThan(120);
+  });
+  it('여진은 크기는 그대로이고 방향이 반반이다', () => {
+    let up = 0, down = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const e = nextDay(createMarket(seed, festivalOnly), festivalOnly).effects[0];
+      const tpl = festivalOnly.templates[0].schedule;
+      expect(e.schedule[0]).toBe(tpl[0]);
+      e.schedule.slice(1).forEach((v, i) => { expect(Math.abs(v)).toBeCloseTo(Math.abs(tpl[i + 1])); if (v * tpl[i + 1] > 0) up++; else down++; });
+    }
+    expect(up / (up + down)).toBeGreaterThan(0.4); expect(up / (up + down)).toBeLessThan(0.6);
   });
 });
 
@@ -126,10 +136,9 @@ describe('업종 영향', () => {
       eventChance: { stock: 0, sector: 0, kingdom: 1 },
       templates: [{ ...war, rumorChance: 0 }],
     };
-    let s = nextDay(createMarket(1, cfg), cfg);
-    const next = nextDay(s, { ...cfg, eventChance: { stock: 0, sector: 0, kingdom: 0 } });
-    expect(next.prices.IRON).toBeGreaterThan(s.prices.IRON);
-    expect(next.prices.SHIP).toBeLessThan(s.prices.SHIP);
+    const start = createMarket(1, cfg), s = nextDay(start, cfg);
+    expect(s.prices.IRON).toBeGreaterThan(start.prices.IRON);
+    expect(s.prices.SHIP).toBeLessThan(start.prices.SHIP);
   });
 });
 

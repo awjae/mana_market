@@ -30,39 +30,12 @@ export function createMarket(seed: number, cfg: EngineConfig = DEFAULT_CONFIG): 
 
 /**
  * 하루 진행: (상태, 시드) → 다음 날 상태. 순수 함수.
- * 1) 전날 장 마감 후 나온 뉴스의 충격(effects)이 오늘 시가에 반영된다.
- * 2) 오늘 장 마감 후 새 뉴스(공시/소문)가 생기고, 그 충격은 내일 반영된다.
+ * 1) 오늘 아침 새 뉴스(공시/소문)가 생긴다. 공시의 첫 충격은 오늘 시가에 바로 반영된다(공시를 보고 사도 이미 늦다).
+ * 2) 지난 공시의 여진(방향 반반)도 오늘 가격에 얹힌다. 소문은 나중에 공시가 될 때(또는 아닐 때)까지 가격에 반영되지 않는다.
  */
 export function step(state: MarketState, seed: number, cfg: EngineConfig = DEFAULT_CONFIG): MarketState {
   const rng = mulberry32(seed);
   const day = state.day + 1;
-
-  // --- 가격 ---
-  const regime = regimeAt(state.seed, day);
-  const marketFactor = cfg.marketPhi * state.marketFactor + cfg.marketVol * regime.vol * gauss(rng);
-  const sectorShock: Record<string, number> = {};
-  for (const s of cfg.sectors) sectorShock[s.id] = cfg.sectorVol * gauss(rng);
-
-  const eventShock: Record<string, number> = {};
-  for (const e of state.effects) {
-    const v = e.magnitude * (e.schedule[e.age] ?? 0);
-    for (const id of e.stockIds) eventShock[id] = (eventShock[id] ?? 0) + v;
-  }
-
-  const prices: Record<string, number> = {};
-  const history: Record<string, number[]> = {};
-  const opens: Record<string, number[]> = {};
-  for (const s of cfg.stocks) {
-    // 시가: 전날 장 마감 후 공시의 충격은 자정 갭으로 먼저 반영된다(낮 동안의 움직임은 예측할 수 없게 남는다)
-    const gap = clamp(eventShock[s.id] ?? 0, -cfg.maxDailyMove, cfg.maxDailyMove);
-    opens[s.id] = [...state.opens[s.id], Math.max(cfg.priceFloor, round2(state.prices[s.id] * (1 + gap)))];
-    const r = clamp(
-      cfg.drift + regime.drift + marketFactor + s.beta * sectorShock[s.sectorId] + s.idioVol * gauss(rng) + (eventShock[s.id] ?? 0),
-      -cfg.maxDailyMove, cfg.maxDailyMove,
-    );
-    prices[s.id] = Math.max(cfg.priceFloor, round2(state.prices[s.id] * (1 + r)));
-    history[s.id] = [...state.history[s.id], prices[s.id]];
-  }
 
   // --- 이벤트 ---
   const effects: ActiveEffect[] = state.effects
@@ -89,9 +62,11 @@ export function step(state: MarketState, seed: number, cfg: EngineConfig = DEFAU
   const fire = (tpl: EventTemplate, targetId: string | undefined, scale: number) => {
     for (const rule of tpl.impacts) {
       const flip = rule.flipChance && rng() < rule.flipChance ? -1 : 1;
+      // 첫 충격은 공시가 보이는 날의 시가에 이미 반영된다. 이후 여진은 방향이 반반이라 공시를 읽고 따라 사도 이득이 남지 않는다
+      const schedule = tpl.schedule.map((v, i) => (i === 0 || rng() < 0.5 ? v : -v));
       effects.push({
         eventId: tpl.id, stockIds: resolve(rule, tpl, targetId),
-        magnitude: rule.magnitude * scale * flip, schedule: tpl.schedule, age: 0,
+        magnitude: rule.magnitude * scale * flip, schedule, age: 0,
       });
     }
     news.push(newsOf(tpl, 'disclosure', targetId));
@@ -126,6 +101,33 @@ export function step(state: MarketState, seed: number, cfg: EngineConfig = DEFAU
   // 국면 전환 즈음의 힌트 소식(가격 영향은 이미 드리프트에 담겨 있다)
   const rn = regimeNews(state.seed, day);
   if (rn) news.push({ day, kind: rn.kind, templateId: rn.templateId, scope: 'kingdom', tone: rn.tone, text: rn.text, targetStockIds: [] }); // 시장 전체 소식: 특정 길드에 !/? 표시를 붙이지 않는다
+
+  // --- 가격 ---
+  const regime = regimeAt(state.seed, day);
+  const marketFactor = cfg.marketPhi * state.marketFactor + cfg.marketVol * regime.vol * gauss(rng);
+  const sectorShock: Record<string, number> = {};
+  for (const s of cfg.sectors) sectorShock[s.id] = cfg.sectorVol * gauss(rng);
+
+  const eventShock: Record<string, number> = {};
+  for (const e of effects) { // 어제까지의 여진 + 오늘 아침 나온 공시
+    const v = e.magnitude * (e.schedule[e.age] ?? 0);
+    for (const id of e.stockIds) eventShock[id] = (eventShock[id] ?? 0) + v;
+  }
+
+  const prices: Record<string, number> = {};
+  const history: Record<string, number[]> = {};
+  const opens: Record<string, number[]> = {};
+  for (const s of cfg.stocks) {
+    // 시가: 오늘 아침 공시와 남은 여진의 충격은 자정 갭으로 먼저 반영된다(낮 동안의 움직임은 예측할 수 없게 남는다)
+    const gap = clamp(eventShock[s.id] ?? 0, -cfg.maxDailyMove, cfg.maxDailyMove);
+    opens[s.id] = [...state.opens[s.id], Math.max(cfg.priceFloor, round2(state.prices[s.id] * (1 + gap)))];
+    const r = clamp(
+      cfg.drift + (s.drift ?? 0) + regime.drift + marketFactor + s.beta * sectorShock[s.sectorId] + s.idioVol * gauss(rng) + (eventShock[s.id] ?? 0),
+      -cfg.maxDailyMove, cfg.maxDailyMove,
+    );
+    prices[s.id] = Math.max(cfg.priceFloor, round2(state.prices[s.id] * (1 + r)));
+    history[s.id] = [...state.history[s.id], prices[s.id]];
+  }
 
   return {
     seed: state.seed, day, marketFactor, prices, history, opens,

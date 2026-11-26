@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bigMoveLine, nextReason } from './reasons';
+import { bigMoveLine, morningPaper, nextReason } from './reasons';
 
 const base = { market: { day: 100 }, holdings: {}, orders: [], bond: {} };
 describe('다음에 들를 이유', () => {
@@ -34,5 +34,21 @@ describe('신규 보호 사실 표시', () => {
     expect(belowStartLine(g)).toContain('1,000 마나 적어');
     expect(belowStartLine({ ...g, market: { day: 30 } })).toBeNull();
     expect(belowStartLine({ ...g, worth: 10500 })).toBeNull();
+  });
+});
+
+describe('조간 한 장', () => {
+  const news = (day: number, kind: 'rumor' | 'disclosure', id: string) => ({ day, kind, templateId: 't', scope: 'stock' as const, tone: 'good' as const, text: `${id}${day}${kind}`, targetStockIds: [id] });
+  const mk = (extra = {}) => ({
+    market: { day: 100, history: {}, news: [], newsLog: [news(90, 'disclosure', 'OLD'), news(99, 'rumor', 'AAA'), news(99, 'disclosure', 'BBB'), news(100, 'rumor', 'MINE'), news(100, 'disclosure', 'CCC')] },
+    holdings: { MINE: {} }, orders: [], bond: {}, trades: [], fired: [], spent: 0, earned: 0, ...extra,
+  }) as unknown as Parameters<typeof morningPaper>[0];
+  it('지난 접속 뒤의 소식만, 보유 종목 먼저 그다음 공시 순으로 3개', () => {
+    const p = morningPaper(mk(), 98, 1000, 1000, 1000);
+    expect(p.news.map((n) => n.targetStockIds[0])).toEqual(['MINE', 'CCC', 'BBB']); expect(p.more).toBe(1);
+  });
+  it('손익률은 쓴 마나를 더하고 활동 수입을 뺀다(HUD와 같은 식)', () => {
+    const p = morningPaper(mk({ spent: 100, earned: 50 }), 98, 1000, 950, 1000);
+    expect(p.pnl).toBeCloseTo(0); expect(p.delta).toBe(-50);
   });
 });

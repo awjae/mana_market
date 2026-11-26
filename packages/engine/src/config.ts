@@ -6,7 +6,7 @@ export const DEFAULT_CONFIG: EngineConfig = {
   stocks: STOCKS,
   sectors: SECTORS,
   templates: TEMPLATES,
-  drift: 0.00035,
+  drift: 0.001,
   marketVol: 0.016,
   marketPhi: 0.2,
   sectorVol: 0.011,

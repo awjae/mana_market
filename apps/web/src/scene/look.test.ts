@@ -36,5 +36,5 @@ describe('도트 캐릭터 데이터', () => {
       expect(new Set(fill.map((x) => `${x.x},${x.y}`)).size).toBe(fill.length);
       for (const x of fill) { expect(x.x).toBeGreaterThanOrEqual(0); expect(x.x).toBeLessThan(GW); }
     }
-  });
+  }, 20000); // 모든 조합을 그려서 병렬 부하에서는 기본 5초를 넘는다
 });

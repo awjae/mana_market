@@ -18,7 +18,7 @@ export function TickerBadge({ id, size = 'md' }: { id: string; size?: 'sm' | 'md
 export function ChangeChip({ r, big }: { r: number; big?: boolean }) {
   const up = r > 0, down = r < 0;
   return (
-    <span className={`chipx ${big ? '!text-[13px] !leading-[22px]' : ''}`} style={{ background: up ? '#ffe3e7' : down ? '#e0ebff' : '#ece8f4', color: up ? '#d62f48' : down ? '#2358d6' : '#7a7090' }}>
+    <span className={`chipx ${big ? '!text-[13px] !leading-[22px]' : ''}`} style={{ background: up ? '#ffe3e7' : down ? '#e0ebff' : '#ece8f4', color: up ? '#b81f38' : down ? '#1c49b8' : '#7a7090' }}>
       {up ? '▲' : down ? '▼' : '–'}{pct(Math.abs(r)).replace('+', '')}
     </span>
   );

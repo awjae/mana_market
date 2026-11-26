@@ -41,7 +41,8 @@ function Fold({ id, title, summary, children, defaultOpen = false }: { id: strin
 const FISH_TOTAL = 16 + CREATURES.length + FOUND_ITEMS.length;
 /** 생활 탭: 오늘 할 수 있는 일을 한눈에 보고 그 자리로 걸어가는 허브(압박 없이 사실만). 아래에 활동·마을·상점·인연·탈것 패널이 이어진다 */
 export function LifePanel() {
-  const g = useGame(), open = useActivity((s) => s.openIt);
+  const g = useGame(), open = useActivity((s) => s.openIt), [all, setAll] = useState(false);
+  const early = g.starter < 5 && !all; // 처음 며칠은 입문 과제와 오늘 할 일만(기능은 그대로, "전부 보기"로 펼친다)
   const day = g.market.day, a = g.act.day === day ? g.act : { sold: 0, fished: 0, casts: 0, dove: 0, tries: 0 };
   const places = placesFor(g), at = (id: string) => places.find((p) => p.id === id)!;
   const heard = Object.values(HEROINES).find((h) => (g.bond[h.id]?.pts ?? 0) < 8 && g.bond[h.id]?.day !== day);
@@ -76,7 +77,7 @@ export function LifePanel() {
           <p className="m-0 text-[11.5px] font-bold leading-snug text-ink2">오늘은 낚시에 {ev.name} 잉어가, 던전 3층에 축제 도깨비가 나와요. 세 과제를 모두 마치면 "{eventTitle(ev)}" 칭호를 받아요(마나 보상은 없어요).</p>
         </div>
       )}
-      <div className="space-y-2">
+      {!early && <><div className="space-y-2">
         <div className="panel-flat flex items-center justify-between gap-2 bg-[#fff6d8] px-3 py-2"><span className="min-w-0 text-[13px] font-black">모험가 등급 <b className="font-display text-[16px]">{rank.name}</b></span><span className="shrink-0 text-right text-[11px] font-bold text-ink2">{rank.next ? `${rank.next[1]}까지 ${rank.next[0] - score}점` : '가장 높은 등급이에요'}</span></div>
         <Title ko="오늘의 모험 목표" right={<span className="text-[11.5px] font-bold text-ink2">함께한 날 {g.daily.n}일</span>} />
         <div className="panel-flat bg-white p-3">
@@ -93,6 +94,7 @@ export function LifePanel() {
           <p className="m-0 mt-2 text-[11.5px] font-bold leading-snug text-ink2">{g.weekly.last === wk ? '이번 주 도전을 모두 마쳤어요.' : '이번 주(6일) 안에 세 가지를 모두 채워요.'} 마나 보상은 없고 마친 주가 쌓이면 칭호를 받아요{nwt ? `(${nwt[1]}까지 ${nwt[0] - g.weekly.n}번)` : ''}.</p>
         </div>
       </div>
+      </>}
       <div className="space-y-2">
         <Title ko="오늘의 생활" right={<span className="text-[11.5px] font-bold text-ink2">활동 수입 {fmt0(a.sold + a.fished + a.dove)}/{ACTIVITY_CAP} 마나</span>} />
         <div className="panel-flat bg-white p-3">
@@ -105,18 +107,20 @@ export function LifePanel() {
           <p className="m-0 mt-2 text-[11.5px] font-bold leading-snug text-ink2">모험 수첩: 낚시 도감 {fishN}/{FISH_TOTAL}, 몬스터 도감 {g.dlog.seen.length}/{MONSTER_NAMES.length}, 가진 소품 {g.ownedProps.length}개. <button onClick={() => open({ kind: 'codex' })} className="ml-1 border-2 border-ink bg-white px-1.5 py-0.5 text-[11px] font-black">도감 보기</button> 걸어가기를 누르면 길을 찾아 그 자리로 가고, 도착하면 E키(터치는 버튼)로 시작해요.{nu ? ` ${nu.name}은(는) 쓴 마나가 ${fmt0(nu.need - g.spent)} 마나 더 쌓이면 열려요.` : ''}</p>
         </div>
       </div>
-      <div className="space-y-2">
+      {!early && <div className="space-y-2">
         <Title ko="가볼 곳" />
         <div className="flex flex-wrap gap-1.5">
           {places.filter((p) => p.kind !== 'heroine').map((p) => <button key={p.id} onClick={() => gotoTile(p.tile)} className="panel-flat h-9 bg-white px-2.5 text-[12px] font-black">{p.name}<span className="ml-1 text-[10.5px] font-bold text-ink2">{p.desc}</span></button>)}
           {Object.values(HEROINES).map((h) => <button key={h.id} onClick={() => gotoTile(h.home)} className="panel-flat h-9 bg-[#fff0f6] px-2.5 text-[12px] font-black">♥ {h.name}{g.love?.id === h.id ? (g.love.stage >= 6 ? ' (결혼한 사이)' : ' (인연)') : ''}</button>)}
         </div>
-      </div>
+      </div>}
       <div id="life-daily"><Fold id="daily" title="활동과 작업대" summary={`번 마나 ${fmt0(g.earned)}`} defaultOpen><DailyPanel bare /></Fold></div>
+      {early ? <button onClick={() => setAll(true)} className="panel-flat h-11 w-full bg-white text-[13px] font-black">전부 보기 (목표·도전·마을·상점·인연·탈것)</button> : <>
       <Fold id="town" title="마을 가꾸기" summary={`번영도 ${prosperity(g.town)}%`}><TownPanel bare /></Fold>
       <Fold id="shop" title="내 상점" summary={g.shop ? `${g.shop.name} ${g.shop.lv}/4단계` : '아직 없어요'}><ShopPanel bare /></Fold>
       <Fold id="love" title="인연" summary={g.love ? HEROINES[g.love.id].name : '아직 정하지 않았어요'}><LovePanel bare /></Fold>
       <Fold id="mount" title="탈것" summary={g.mount ? MOUNT_NAMES[g.mount] : g.mounts.length ? '내려서 걷는 중' : '없어요'}><MountPanel bare /></Fold>
+      </>}
     </div>
   );
 }

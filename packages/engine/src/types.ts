@@ -12,6 +12,8 @@ export interface Stock {
   beta: number;
   /** 종목 고유 일일 노이즈 표준편차 */
   idioVol: number;
+  /** 종목별 상승률 보정(하루). 변동이 큰 업종의 평균이 뒤처지지 않게 */
+  drift?: number;
 }
 
 /** to: 'target' = 이벤트 대상(종목 또는 업종), 'all' = 전 종목, {sector} = 해당 업종 */
@@ -99,7 +101,7 @@ export interface MarketState {
   index: number[];
   effects: ActiveEffect[];
   pending: PendingEvent[];
-  /** 오늘(장 마감 후) 나온 뉴스. 가격에는 다음 날 시가부터 반영된다 */
+  /** 오늘 아침 나온 뉴스. 공시는 오늘 시가에 이미 반영돼 있다 */
   news: NewsItem[];
   newsLog: NewsItem[];
 }

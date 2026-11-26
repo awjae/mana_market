@@ -3,14 +3,14 @@ import { Stage } from './components/Stage';
 import { sfx } from './audio';
 import { ranking } from './social';
 import { ServerPanel } from './ui/ServerPanel';
-import { belowStartLine, bigMoveLine, nextReason } from './reasons';
+import { morningPaper, type Paper } from './reasons';
+import { MorningPaper } from './ui/MorningPaper';
 import { TitlePicker } from './ui/TitlePicker';
 import { ActivityHost } from './ui/ActivityHost';
 import { BankPanel } from './ui/BankPanel';
 import { LifePanel } from './ui/LifePanel';
 import { Ranking } from './ui/Ranking';
-import { dayLabel, weatherAt, weatherKind } from './calendar';
-import { pct } from './format';
+import { weatherAt, weatherKind } from './calendar';
 import { Sky, Weather } from './scene/Backdrop';
 import { skyPhase } from './calendar';
 import type { Mood } from './scene/Hero';
@@ -93,21 +93,15 @@ export default function App() {
   const wk = weatherKind(market.day), mood = weatherAt(market.day); // 하늘은 지수와 무관: 날짜로 정해진 한국식 날씨
   const say = useCallback((text: string, m: Mood = 'normal', sparkle = false) => { setLine({ id: Date.now(), text, mood: m }); if (sparkle) setBurst(Date.now()); }, []);
 
-  /** 며칠이 흘렀을 때(새 아침/자리를 비운 사이)의 안내: 자산 변화와 새 소식 */
-  const report = useCallback((fromDay: number, worthBefore: number, lead: string) => {
+  /** 며칠이 흘렀을 때(새 아침/자리를 비운 사이): 닫기 전까지 남는 조간 한 장. 닫아야 "봤다"고 기록한다 */
+  const [paper, setPaper] = useState<{ p: Paper; day: number; away: number } | null>(null);
+  const report = useCallback((fromDay: number, worthBefore: number) => {
     const g = useGame.getState();
-    const d = netWorth(g) - worthBefore;
-    const fresh = g.market.newsLog.filter((n) => n.day > fromDay);
-    const div = g.trades.filter((t) => t.side === 'div' && t.day > fromDay).reduce((a, t) => a + t.price * t.qty, 0);
-    const filled = g.trades.filter((t) => t.lim && t.day > fromDay).length;
-    const alerts = g.fired.filter((f) => f.day > fromDay).map((f) => `${f.id}가 ${Math.round(f.limit).toLocaleString('ko-KR')}에 ${f.above ? '닿았어' : '내려왔어'}.`).slice(0, 2).join(' ');
-    const reason = nextReason(g), big = bigMoveLine(g), below = belowStartLine({ trades: g.trades, market: g.market, worth: netWorth(g), spent: g.spent - g.earned, start: START_CASH });
-    const disc = fresh.some((n) => n.kind === 'disclosure');
-    const move = Math.abs(d) < 1 ? '자산은 그대로야.' : d > 0 ? `자산이 ${Math.round(d).toLocaleString('ko-KR')} 마나 늘었어!` : `자산이 ${Math.abs(Math.round(d)).toLocaleString('ko-KR')} 마나 줄었어…`;
-    const sky = { clear: '맑은 하늘이야.', cloud: '하늘이 흐려.', rain: '비가 오고 있어.', snow: '눈이 내리고 있어!' }[weatherKind(g.market.day)];
-    say(`${lead} ${sky} ${move}${alerts ? ` 알림: ${alerts}` : ''}${filled ? ` 예약 주문 ${filled}건이 체결됐어!` : ''}${div > 0 ? ` 배당금 ${Math.round(div).toLocaleString('ko-KR')} 마나도 들어왔어!` : ''} ${fresh.length ? `새 소식이 ${fresh.length}건 도착했어${disc ? ' — 공시도 있어!' : '.'}` : '오늘은 조용하네.'} ${big ? `${big} ` : ''}${below ? `${below} ` : ''}${reason ? `${reason} ` : ''}(시작 자금 대비 ${pct(netWorth(g) / START_CASH - 1)})`, disc ? 'wow' : d < -1 ? 'worried' : d > 1 ? 'happy' : 'normal', d > 1);
-    g.setLastSeen(g.market.day);
-  }, [say]);
+    const p = morningPaper(g, fromDay, worthBefore, netWorth(g), START_CASH);
+    setPaper({ p, day: g.market.day, away: g.market.day - fromDay });
+    if (p.delta > 1) setBurst(Date.now());
+  }, []);
+  const closePaper = () => { const g = useGame.getState(); g.setLastSeen(g.market.day); setPaper(null); };
   // 월간 결산: 달이 바뀐 뒤 처음 접속하면 지난달 총자산을 기록하고 알려 준다
   const dayNow = useGame((g) => g.market.day);
   useEffect(() => { if (storyOpen) return; if (useGame.getState().claimRelief()) say('왕실에서 구호 지원 3,000 마나가 도착했어. 한 달에 한 번, 총자산이 3,000 아래일 때만 받을 수 있어.', 'happy'); useGame.getState().touchVisit(); const prev = useGame.getState().logWorth(); if (prev) say('새 달이 시작됐어. 지난달 결산은 달력에서 볼 수 있어. 숫자만 적어 뒀어.'); }, [dayNow, storyOpen, say]);
@@ -133,7 +127,7 @@ export default function App() {
       const g = useGame.getState();
       if (!g.granted) return;
       const away = g.market.day - g.lastSeenDay;
-      if (away > 0) report(g.lastSeenDay, netWorthAt(g, g.lastSeenDay), `${away}일 만에 돌아왔구나! 그사이 ${dayLabel(g.market.day)}이(가) 됐어.`);
+      if (away > 0) report(g.lastSeenDay, netWorthAt(g, g.lastSeenDay));
       else say('다시 왔구나! 오늘의 소식부터 확인해 볼까?', 'happy');
     }, 700);
     return () => clearTimeout(t);
@@ -146,7 +140,7 @@ export default function App() {
       if (!g.granted) return;
       const before = netWorth(g), day0 = g.market.day;
       const n = g.syncToNow();
-      if (n > 0) { sfx.morning(); report(day0, before, `${dayLabel(useGame.getState().market.day)}, 새 아침이 밝았어.`); }
+      if (n > 0) { sfx.morning(); report(day0, before); }
     };
     const t = setInterval(check, 15000);
     const vis = () => document.visibilityState === 'visible' && check();
@@ -231,6 +225,7 @@ export default function App() {
             <BottomNav tab={tab} open={size !== 'closed'} onTab={onTab} />
             {!looked && <Creator onDone={() => setLooked(true)} />}
             <ActivityHost />
+            {paper && !storyOpen && <MorningPaper paper={paper.p} day={paper.day} away={paper.away} onClose={closePaper} onNews={() => { closePaper(); setTab('news'); setSize('half'); }} />}
             {convo && <Conversation id={convo} onClose={() => setConvo(null)} />}
             {storyOpen && looked && (
               <Story onGrant={grantCapital} onCoins={() => setBurst(Date.now())} onDone={() => { setStoryOpen(false); say('먼저 길드들을 둘러보자. 방향키로 걸어 다닐 수 있어!', 'normal'); }} />

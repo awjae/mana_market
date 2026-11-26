@@ -49,6 +49,7 @@ await step('마을 기부(마나 소비)', async () => {
   const st = () => pg.evaluate(() => JSON.parse(localStorage.getItem('mana-market-v1')).state);
   const before = await st();
   await pg.keyboard.press('Escape'); await pg.keyboard.press('3'); await pg.waitForTimeout(600);
+  const all = pg.locator('button:has-text("전부 보기")'); if (await all.count()) await all.click();
   await pg.locator('button[aria-expanded="false"]:has-text("마을 가꾸기")').click(); await pg.waitForTimeout(300); // 생활 탭의 구역은 접혀 있다
   const btn = pg.locator('button:has-text("500 마나")').first();
   await btn.scrollIntoViewIfNeeded(); await btn.click(); await pg.waitForTimeout(250);

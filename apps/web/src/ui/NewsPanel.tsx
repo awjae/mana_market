@@ -6,7 +6,7 @@ import { useGame } from '../store';
 import { Quests } from './Quests';
 import { ChangeChip, Empty, Title, TickerBadge } from './bits';
 
-const TONE = { good: ['호재', '#ffe3e7', '#d62f48'], bad: ['악재', '#e0ebff', '#2358d6'], mixed: ['엇갈림', '#ece8f4', '#6b5a82'] } as const;
+const TONE = { good: ['호재', '#ffe3e7', '#b81f38'], bad: ['악재', '#e0ebff', '#1c49b8'], mixed: ['엇갈림', '#ece8f4', '#6b5a82'] } as const;
 
 /** 관련 길드 칩: 탭하면 그 길드로 걸어간다 */
 function Guilds({ n, label }: { n: NewsItem; label: string }) {
@@ -35,11 +35,11 @@ function Notice({ n }: { n: NewsItem }) {
       <span className="seal absolute left-3 top-3">공시</span>
       <div className="mb-1 flex items-center gap-2 font-sans">
         <span className="chipx" style={{ background: bg, color: fg }}>{label}</span>
-        <span className="text-[11px] font-bold text-ink2">{dayLabel(n.day)} 장 마감 후</span>
+        <span className="text-[11px] font-bold text-ink2">{dayLabel(n.day)} 아침</span>
       </div>
       <p className="m-0 text-[14.5px] font-black leading-[1.6]">{n.text}</p>
       <Guilds n={n} label="관련 길드" />
-      <p className="m-0 mt-1.5 font-sans text-[10.5px] font-bold text-ink2">확정된 사실이에요. 가격은 다음 날 시가부터 반영돼요.</p>
+      <p className="m-0 mt-1.5 font-sans text-[10.5px] font-bold text-ink2">확정된 사실이에요. 이 소식은 지금 가격에 이미 반영돼 있어요.</p>
     </li>
   );
 }

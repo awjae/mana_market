@@ -26,4 +26,8 @@ describe('입문 과제', () => {
     const ids = placesFor({ shop: null, love: null }).map((p) => p.id);
     for (const t of STARTER) if (t.place) expect(ids).toContain(t.place);
   });
+  it('하루 안에 끝낼 수 없는 과제(히로인 4번째 이야기)는 주식·활동 과제 뒤, 마지막 상점 과제 앞에 있다', () => {
+    const ids = STARTER.map((t) => t.id);
+    expect(ids.indexOf('story')).toBe(ids.indexOf('shop') - 1); expect(ids.indexOf('story')).toBeGreaterThan(ids.indexOf('town'));
+  });
 });

@@ -1,4 +1,4 @@
-import { isDividendDay, fantasyDate } from '@mana/engine';
+import { isDividendDay, fantasyDate, type Fired, type MarketState, type NewsItem, type Trade } from '@mana/engine';
 import { HEROINES } from './scene/heroines';
 import type { Order } from '@mana/engine';
 import { nextUnlock } from './scene/townFx';
@@ -44,4 +44,25 @@ export function belowStartLine(g: { trades: { day: number }[]; market: { day: nu
   if (first === undefined || g.market.day - first > 14) return null;
   const gap = g.start - g.spent - g.worth;
   return gap >= 1 ? `총자산이 시작 자금보다 ${Math.round(gap).toLocaleString('ko-KR')} 마나 적어. 시세는 오르내리고, 가진 주식은 팔기 전까지는 손익이 확정되지 않아.` : null;
+}
+
+/** 조간 한 장에 싣는 내용: 지난 접속(`fromDay`) 뒤의 사실만 모은다. 가격은 `market`(지금 슬롯 뷰)만 읽어 오늘 종가가 새지 않는다 */
+export interface Paper {
+  worth: number; delta: number; /** 마을·소품에 쓴 마나는 빼고 벌어들인 활동 수입은 제외한 손익률(HUD와 같은 식) */ pnl: number;
+  alerts: string[]; filled: number; dividend: number; news: NewsItem[]; more: number; big: string | null; below: string | null; reason: string | null;
+}
+export const PAPER_NEWS = 3;
+export function morningPaper(g: Parameters<typeof nextReason>[0] & { market: MarketState; holdings: Record<string, unknown>; trades: Trade[]; fired: Fired[]; spent: number; earned: number }, fromDay: number, worthBefore: number, worth: number, start: number): Paper {
+  const fresh = g.market.newsLog.filter((n) => n.day > fromDay);
+  const mine = (n: NewsItem) => n.targetStockIds.some((id) => g.holdings[id]);
+  // 가진 길드의 소식이 먼저, 그다음 공시, 그 안에서는 최근 것부터
+  const sorted = [...fresh].sort((a, b) => Number(mine(b)) - Number(mine(a)) || Number(b.kind === 'disclosure') - Number(a.kind === 'disclosure') || b.day - a.day);
+  return {
+    worth, delta: worth - worthBefore, pnl: (worth + g.spent - g.earned) / start - 1,
+    alerts: g.fired.filter((f) => f.day > fromDay).slice(0, 2).map((f) => `${f.id}가 ${Math.round(f.limit).toLocaleString('ko-KR')}에 ${f.above ? '닿았어요' : '내려왔어요'}`),
+    filled: g.trades.filter((t) => t.lim && t.day > fromDay).length,
+    dividend: g.trades.filter((t) => t.side === 'div' && t.day > fromDay).reduce((a, t) => a + t.price * t.qty, 0),
+    news: sorted.slice(0, PAPER_NEWS), more: Math.max(0, sorted.length - PAPER_NEWS),
+    big: bigMoveLine(g), below: belowStartLine({ trades: g.trades, market: g.market, worth, spent: g.spent - g.earned, start }), reason: nextReason(g),
+  };
 }

@@ -3,6 +3,10 @@ import { WORLD_VERSION, marketAtDay } from '../src/world';
 
 // 골든 값: 이 테스트가 깨졌다면 세계(과거 시세)가 바뀐 것이다. 의도한 변경이면 WORLD_VERSION을 올리고 값을 갱신한다
 const GOLDEN: Record<number, Record<number, { prices: Record<string, number>; index: number }>> = {
+  12: {
+    100: { prices: { IRON: 94.89, MERC: 46.24, GRAN: 107.14, RNCH: 54.57, TOWR: 167.92, ALCH: 95.79, SHIP: 201.95, SPCE: 107.56, BANK: 255.63, INSR: 231.76 }, index: 1139.43 },
+    300: { prices: { IRON: 124.25, MERC: 69.49, GRAN: 107.33, RNCH: 26.32, TOWR: 173.36, ALCH: 88.67, SHIP: 105.44, SPCE: 101.94, BANK: 242.61, INSR: 219.92 }, index: 1035.07 },
+  },
   11: {
     100: { prices: {IRON: 192.76, MERC: 20.19, GRAN: 77.61, RNCH: 80.02, TOWR: 138.54, ALCH: 131.29, SHIP: 240.53, SPCE: 265.52, BANK: 394.37, INSR: 357.16}, index: 1552.51 },
     300: { prices: {IRON: 379.99, MERC: 29.13, GRAN: 158.37, RNCH: 99.19, TOWR: 194.62, ALCH: 214.19, SHIP: 557.29, SPCE: 280.4, BANK: 1133.32, INSR: 583.62}, index: 2666.09 },
