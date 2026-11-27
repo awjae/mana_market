@@ -24,7 +24,7 @@ export const STOCKS: Stock[] = [
 const AFTERSHOCK = [1, 0.5, 0.25];
 const OVERREACTION = [1.6, -0.5, -0.3]; // 과잉 반응 후 일부 되돌림
 
-export const TEMPLATES: EventTemplate[] = [
+const BASE_TEMPLATES: EventTemplate[] = [
   {
     id: 'stock_contract', scope: 'stock', tone: 'good', weight: 3,
     impacts: [{ to: 'target', magnitude: 0.04 }],
@@ -228,3 +228,7 @@ export const TEMPLATES: EventTemplate[] = [
     rumor: '인접국과 비밀 협상이 진행 중이라는 소문이 돈다',
   },
 ];
+
+/** 소문 빈도(v13): 소식이 소문으로 먼저 도는 비율을 한 곳에서 올린다(판단할 거리가 있는 날을 늘린다). 적중률(`rumorAccuracy`)은 그대로 */
+export const RUMOR_BOOST = 2, RUMOR_CAP = 0.85;
+export const TEMPLATES: EventTemplate[] = BASE_TEMPLATES.map((t) => ({ ...t, rumorChance: Math.min(RUMOR_CAP, t.rumorChance * RUMOR_BOOST) }));

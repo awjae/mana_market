@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bigMoveLine, morningPaper, nextReason } from './reasons';
+import { bigMoveLine, morningPaper, nextReason, rumorOutcome } from './reasons';
+import { DEFAULT_CONFIG } from '@mana/engine';
 
 const base = { market: { day: 100 }, holdings: {}, orders: [], bond: {} };
 describe('다음에 들를 이유', () => {
@@ -50,5 +51,27 @@ describe('조간 한 장', () => {
   it('손익률은 쓴 마나를 더하고 활동 수입을 뺀다(HUD와 같은 식)', () => {
     const p = morningPaper(mk({ spent: 100, earned: 50 }), 98, 1000, 950, 1000);
     expect(p.pnl).toBeCloseTo(0); expect(p.delta).toBe(-50);
+  });
+});
+
+describe('지난 소문의 결과', () => {
+  const tpl = DEFAULT_CONFIG.templates.find((t) => t.rumorChance > 0)!, hi = tpl.rumorLead[1];
+  const mk = (day: number, kind: 'rumor' | 'disclosure', id = 'IRON', templateId = tpl.id) => ({ day, kind, templateId, scope: 'stock' as const, tone: 'good' as const, text: 't', targetStockIds: [id] });
+  const r = mk(10, 'rumor');
+  it('기한 안에 같은 공시가 나면 confirmed, 지나면 none, 그 전에는 열림', () => {
+    expect(rumorOutcome(r, [r, mk(10 + hi, 'disclosure')], 20)).toEqual({ kind: 'confirmed', day: 10 + hi });
+    expect(rumorOutcome(r, [r], 10 + hi)).toEqual({ kind: 'none', day: 10 + hi });
+    expect(rumorOutcome(r, [r], 10)).toBeNull();
+  });
+  it('국면 소문, 다른 길드의 공시, 기한 뒤의 공시', () => {
+    expect(rumorOutcome({ ...r, templateId: 'regime_boom', targetStockIds: [] }, [], 30)).toBeNull();
+    expect(rumorOutcome(r, [r, mk(11, 'disclosure', 'MERC')], 20)?.kind).toBe('none');
+    expect(rumorOutcome(r, [r, mk(11 + hi, 'disclosure')], 30)?.kind).toBe('none');
+  });
+  it('조간에는 지난 접속 뒤에 결과가 정해진 소문만 2건까지', () => {
+    const log = [mk(10, 'rumor', 'AAA'), mk(11, 'rumor', 'BBB'), mk(12, 'rumor', 'MINE'), mk(13, 'rumor', 'CCC')];
+    const g = { market: { day: 20, history: {}, news: [], newsLog: log }, holdings: { MINE: {} }, orders: [], bond: {}, trades: [], fired: [], spent: 0, earned: 0 } as unknown as Parameters<typeof morningPaper>[0];
+    expect(morningPaper(g, 5, 1000, 1000, 1000).rumors.map((x) => x.n.targetStockIds[0])).toEqual(['MINE', 'CCC']);
+    expect(morningPaper(g, 13 + hi, 1000, 1000, 1000).rumors).toEqual([]);
   });
 });

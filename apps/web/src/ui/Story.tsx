@@ -23,7 +23,7 @@ const makeBeats = (date: string, nick: string): Beat[] => [
   { who: 'steward', text: '걱정 마십시오. 우리 왕국은 새로 온 상인에게 첫 밑천을 내립니다.' },
   { who: 'grant' },
   { who: 'aria', text: '우와… 이게 전부 내 거야?!', mood: 'happy' },
-  { who: 'steward', text: '시세는 하루에 한 번, 왕국의 자정에 종이 울릴 때 바뀝니다. 소식을 읽고 길드에서 사고팔며 마나를 불리십시오. 다만 소문은 틀릴 수도 있으니 조심하시길.' },
+  { who: 'steward', text: '시세는 하루 종일 조금씩 움직이고, 왕국의 자정에 새 하루가 시작됩니다. 소식을 읽고 길드에서 사고팔며 마나를 불리십시오. 다만 소문은 틀릴 수도 있으니 조심하시길.' },
   { who: 'aria', text: '좋아, 해 보자! 먼저 길드들부터 둘러볼까?', mood: 'happy' },
 ];
 

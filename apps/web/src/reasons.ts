@@ -1,4 +1,4 @@
-import { isDividendDay, fantasyDate, type Fired, type MarketState, type NewsItem, type Trade } from '@mana/engine';
+import { DEFAULT_CONFIG, isDividendDay, fantasyDate, type Fired, type MarketState, type NewsItem, type Trade } from '@mana/engine';
 import { HEROINES } from './scene/heroines';
 import type { Order } from '@mana/engine';
 import { nextUnlock } from './scene/townFx';
@@ -46,10 +46,23 @@ export function belowStartLine(g: { trades: { day: number }[]; market: { day: nu
   return gap >= 1 ? `총자산이 시작 자금보다 ${Math.round(gap).toLocaleString('ko-KR')} 마나 적어. 시세는 오르내리고, 가진 주식은 팔기 전까지는 손익이 확정되지 않아.` : null;
 }
 
+/** 지난 소문의 결과(이미 공개된 소식 기록만 본다): 기한 안에 같은 내용의 공시가 났으면 confirmed, 기한이 지나도록 없으면 none, 아직 열려 있으면 null.
+ *  국면 힌트(템플릿 목록에 없고 대상 길드가 없음)는 null. `pending`·`effects`·`tone`은 읽지 않는다 */
+// ponytail: 우연히 같은 길드에 같은 종류의 공시가 나도 "같은 내용"으로 잡힌다. 문구가 사실 그대로라 허용
+export type RumorOutcome = { kind: 'confirmed' | 'none'; day: number };
+export function rumorOutcome(n: NewsItem, newsLog: NewsItem[], day: number): RumorOutcome | null {
+  const tpl = DEFAULT_CONFIG.templates.find((t) => t.id === n.templateId);
+  if (n.kind !== 'rumor' || !tpl || !n.targetStockIds.length) return null;
+  const until = n.day + tpl.rumorLead[1], key = n.targetStockIds.join();
+  const hit = newsLog.find((d) => d.kind === 'disclosure' && d.templateId === n.templateId && d.targetStockIds.join() === key && d.day > n.day && d.day <= Math.min(day, until));
+  return hit ? { kind: 'confirmed', day: hit.day } : day >= until ? { kind: 'none', day: until } : null;
+}
+export const rumorLine = (n: NewsItem, o: RumorOutcome) => o.kind === 'confirmed' ? `${o.day - n.day}일 뒤 같은 내용의 공시가 났어요.` : `${o.day - n.day}일이 지나도록 같은 내용의 공시는 없었어요.`;
+
 /** 조간 한 장에 싣는 내용: 지난 접속(`fromDay`) 뒤의 사실만 모은다. 가격은 `market`(지금 슬롯 뷰)만 읽어 오늘 종가가 새지 않는다 */
 export interface Paper {
   worth: number; delta: number; /** 마을·소품에 쓴 마나는 빼고 벌어들인 활동 수입은 제외한 손익률(HUD와 같은 식) */ pnl: number;
-  alerts: string[]; filled: number; dividend: number; news: NewsItem[]; more: number; big: string | null; below: string | null; reason: string | null;
+  alerts: string[]; filled: number; dividend: number; news: NewsItem[]; rumors: { n: NewsItem; o: RumorOutcome }[]; more: number; big: string | null; below: string | null; reason: string | null;
 }
 export const PAPER_NEWS = 3;
 export function morningPaper(g: Parameters<typeof nextReason>[0] & { market: MarketState; holdings: Record<string, unknown>; trades: Trade[]; fired: Fired[]; spent: number; earned: number }, fromDay: number, worthBefore: number, worth: number, start: number): Paper {
@@ -62,6 +75,9 @@ export function morningPaper(g: Parameters<typeof nextReason>[0] & { market: Mar
     alerts: g.fired.filter((f) => f.day > fromDay).slice(0, 2).map((f) => `${f.id}가 ${Math.round(f.limit).toLocaleString('ko-KR')}에 ${f.above ? '닿았어요' : '내려왔어요'}`),
     filled: g.trades.filter((t) => t.lim && t.day > fromDay).length,
     dividend: g.trades.filter((t) => t.side === 'div' && t.day > fromDay).reduce((a, t) => a + t.price * t.qty, 0),
+    // 지난 접속 뒤에 결과가 정해진 소문(보유 길드 먼저, 최근 순 2건)
+    rumors: g.market.newsLog.flatMap((n) => { const o = rumorOutcome(n, g.market.newsLog, g.market.day); return o && o.day > fromDay ? [{ n, o }] : []; })
+      .sort((a, b) => Number(mine(b.n)) - Number(mine(a.n)) || b.o.day - a.o.day).slice(0, 2),
     news: sorted.slice(0, PAPER_NEWS), more: Math.max(0, sorted.length - PAPER_NEWS),
     big: bigMoveLine(g), below: belowStartLine({ trades: g.trades, market: g.market, worth, spent: g.spent - g.earned, start }), reason: nextReason(g),
   };

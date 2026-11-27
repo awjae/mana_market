@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { fmt } from '../format';
 import { ORDER_DAYS, useGame } from '../store';
 
-/** 지정가 예약: 정한 가격에 시세가 닿는 날 자동으로 거래된다(하루에 한 번 시세가 바뀌니 자정에 확인). 위쪽 주문서의 수량·사기/팔기를 그대로 쓴다 */
+/** 지정가 예약: 15분마다 바뀌는 시세가 정한 가격에 닿으면 자동으로 거래된다. 위쪽 주문서의 수량·사기/팔기를 그대로 쓴다 */
 export function OrderBox({ id, buyMode, qty, price, onToast }: { id: string; buyMode: boolean; qty: number; price: number; onToast: (m: string, ok?: boolean) => void }) {
   const { orders, placeOrder, cancelOrder } = useGame();
   const [open, setOpen] = useState(false), [lim, setLim] = useState(''), [alert, setAlert] = useState(false);
@@ -19,7 +19,7 @@ export function OrderBox({ id, buyMode, qty, price, onToast }: { id: string; buy
       </button>
       {open && (
         <div className="mt-2 space-y-2">
-          <p className="m-0 text-[11.5px] font-bold leading-snug text-ink2">정한 가격에 시세가 닿는 날 자동으로 거래돼요({ORDER_DAYS}일 동안). 시세는 하루에 한 번 바뀌어요. 수량은 위 주문서의 {qty || 0}주예요.</p>
+          <p className="m-0 text-[11.5px] font-bold leading-snug text-ink2">15분마다 바뀌는 시세가 정한 가격에 닿으면 자동으로 거래돼요({ORDER_DAYS}일 동안). 수량은 위 주문서의 {qty || 0}주예요.</p>
           <label className="flex items-center gap-1.5 text-[12px] font-bold"><input type="checkbox" checked={alert} onChange={(e) => setAlert(e.target.checked)} />거래하지 않고 알림만 받기</label>
           <div className="flex gap-2">
             <input type="number" inputMode="decimal" value={lim} placeholder={buyMode ? `${fmt(price)}보다 낮게` : `${fmt(price)}보다 높게`} onChange={(e) => setLim(e.target.value)} onWheel={(e) => e.currentTarget.blur()}

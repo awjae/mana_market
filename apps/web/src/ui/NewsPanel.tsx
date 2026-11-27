@@ -1,6 +1,7 @@
 import type { NewsItem } from '@mana/engine';
 import { useState } from 'react';
 import { dayLabel } from '../calendar';
+import { rumorLine, rumorOutcome } from '../reasons';
 import { change } from '../format';
 import { useGame } from '../store';
 import { Quests } from './Quests';
@@ -46,11 +47,12 @@ function Notice({ n }: { n: NewsItem }) {
 
 /** 소문: 누가 흘린 손글씨 속삭임 */
 function Rumor({ n }: { n: NewsItem }) {
+  const { market } = useGame(), o = rumorOutcome(n, market.newsLog, market.day);
   return (
     <li className="whisper mb-3 px-4 py-3">
       <p className="m-0 text-[19px] font-bold leading-[1.35]">“{n.text}”</p>
       <Guilds n={n} label="이 길드 얘기래요" />
-      <p className="m-0 mt-1.5 font-sans text-[10.5px] font-bold text-ink2">아직 확인된 게 없어요. 사실이 아닐 수도 있어요.</p>
+      <p className="m-0 mt-1.5 font-sans text-[10.5px] font-bold text-ink2">{o ? rumorLine(n, o) : '아직 확인된 게 없어요. 사실이 아닐 수도 있어요.'}</p>
     </li>
   );
 }

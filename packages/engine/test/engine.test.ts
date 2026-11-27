@@ -156,3 +156,12 @@ describe('이벤트 템플릿 정의', () => {
     }
   });
 });
+
+describe('소문 빈도', () => {
+  it('길드가 지목된 소문이 있는 날이 셋 중 하나 이상이다(적중률은 1이 아니다)', () => {
+    let days = 0, hit = 0;
+    for (let seed = 1; seed <= 20; seed++) { const m = run(seed, 200); for (let d = 1; d <= 200; d++) { days++; if (m.newsLog.some((n) => n.day === d && n.kind === 'rumor' && n.targetStockIds.length)) hit++; } }
+    expect(hit / days).toBeGreaterThan(0.32); expect(hit / days).toBeLessThan(0.45);
+    expect(TPL.every((t) => t.rumorChance <= 0.85 && t.rumorAccuracy < 1)).toBe(true);
+  });
+});

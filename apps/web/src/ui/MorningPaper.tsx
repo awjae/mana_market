@@ -1,6 +1,6 @@
 import { dayLabel, weatherKind } from '../calendar';
 import { pct } from '../format';
-import type { Paper } from '../reasons';
+import { rumorLine, type Paper } from '../reasons';
 
 const SKY = { clear: '맑음', cloud: '흐림', rain: '비', snow: '눈' };
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -32,6 +32,12 @@ export function MorningPaper({ paper, day, away, onNews, onClose }: { paper: Pap
               {paper.more > 0 && <li className="text-[11.5px] font-bold text-ink2">소식 탭에 {paper.more}건이 더 있어요</li>}
             </ul>
           ) : <p className="m-0 text-[12.5px] font-bold text-ink2">새 소식은 없어요.</p>}
+          {paper.rumors.length > 0 && (
+            <div className="border-t-2 border-ink pt-1.5">
+              <p className="m-0 text-[12px] font-black">지난 소문</p>
+              <ul className="m-0 list-none p-0">{paper.rumors.map(({ n, o }) => <li key={`${n.day}-${n.templateId}`} className="ruled py-1"><span className="block font-hand text-[15px] font-bold leading-tight">“{n.text}”</span><span className="block text-[11.5px] font-black">{rumorLine(n, o)}</span></li>)}</ul>
+            </div>
+          )}
           {[paper.big, paper.below, paper.reason].filter(Boolean).map((t) => <p key={t} className="m-0 text-[12px] font-bold">{t}</p>)}
         </div>
         <div className="flex gap-2 border-t-2 border-ink p-2.5">
